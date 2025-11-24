@@ -1,0 +1,21 @@
+{
+  "name": "notion_tasks_integration",
+  "version": "1.0.0",
+  "description": "recurring tasks integration using notino API, and webhooks",
+  "license": "ISC",
+  "author": "nikan ostovan",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx nodemon run"
+  },
+  "dependencies": {
+    "@notionhq/client": "^5.4.0",
+    "crypto": "^1.0.1",
+    "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "mysql2": "^3.15.3",
+    "nodemon": "^3.1.11"
+  }
+}

@@ -1,0 +1,124 @@
+import express from "express";
+import dotenv from "dotenv";
+import { Client } from "@notionhq/client";
+
+// import { addDays, addHours, parseISO } from "date-fns";
+
+import {
+  isTrustedNotionRequest,
+  updateValidationToken,
+  addDays,
+} from "./utils.js";
+
+dotenv.config();
+
+const app = express();
+
+// needed for token verification
+let rawBodySaver = function (req, res, buf, encoding) {
+  if (buf && buf.length) {
+    req.rawBody = buf.toString(encoding || "utf8");
+  }
+};
+
+app.use((req, res, next) => {
+  res.setHeader("Notion-Version", "2025-09-03");
+});
+
+const PORT = process.env.PORT || 5000;
+const notion = new Client({ auth: process.env.INTERNAL_INTEGRATION_SECRET });
+
+// ROUTES --------------------------------------------------------
+
+// Health check
+app.get("/health", (req, res) => {
+  res.send("healthy");
+});
+// https://developers.notion.com/reference/webhooks-events-delivery
+// https://developers.notion.com/reference/query-a-data-source
+// https://developers.notion.com/reference/retrieve-a-page
+// https://developers.notion.com/reference/retrieve-a-page-property
+// Main webhook endpoint
+app.post("/notion-webhook", async (req, res) => {
+  try {
+    const body = req.body;
+    console.log("logging webhook request", req, req.body);
+
+    // handles intial verification
+    if (body.verification_token != null) {
+      console.log("verification token: ", verification_token);
+      updateValidationToken(body.verification_token);
+    }
+
+    // handles subsequent verification requests
+    else if (!isTrustedNotionRequest(req)) {
+      console.log("unable to verify, wrong validation token");
+      return res.status(401).send("Invalid token");
+    }
+
+    // log event type
+    const eventType = body.type;
+    console.log(`Received Notion event: ${eventType}`);
+
+    if (eventType === "data_source.content_updated") {
+      await handleTaskUpdate(body);
+    } else {
+      console.log("Ignoring event type ", eventType);
+    }
+
+    res.status(200).send("OK");
+  } catch (err) {
+    console.error("Error handling webhook:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+// --- Event handler logic -------------------------------------------
+
+/**
+ * See if it the task changed is the
+ * recurring task and if so set it up
+ * for its next appearance
+ */
+async function handleTaskUpdate(event) {
+  console.log(event);
+
+  let page = event?.data?.parent;
+  if (page.type != "page") {
+    console.warn("No page on event");
+    return;
+  }
+  let status = await notion.pages.properties.retrieve({
+    page_id: page.id,
+    property_id: "blD%7D", //this is hard coded for now but its the Status ID property
+  });
+  let date = await notion.pages.properties.retrieve({
+    page_id: page.id,
+    property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
+  });
+
+  if (status == "Done") {
+    // since i dont want a billion tasks in the dashboard ill just
+    // change the status and push up the date instead of archving
+    // and then creating a new one.
+    await notion.pages.update({
+      page_id: page.id,
+      properties: {
+        Status: {
+          status: { name: "To-Do" },
+        },
+        "Due Date": {
+          date: {
+            start: addDays(date.date.start, 2),
+          },
+        },
+      },
+    });
+  }
+}
+
+// -------------------------------------------------------------------
+
+app.listen(PORT, async () => {
+  console.log(`🚀 Server listening on port ${PORT}`);
+});
