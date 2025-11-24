@@ -23,6 +23,7 @@ let rawBodySaver = function (req, res, buf, encoding) {
 
 app.use((req, res, next) => {
   res.setHeader("Notion-Version", "2025-09-03");
+  next();
 });
 
 const PORT = process.env.PORT || 5000;
@@ -30,6 +31,9 @@ const notion = new Client({ auth: process.env.INTERNAL_INTEGRATION_SECRET });
 
 // ROUTES --------------------------------------------------------
 
+app.get("/", (req, res) => {
+  res.send("Server is alive 🚀");
+});
 // Health check
 app.get("/health", (req, res) => {
   res.send("healthy");
@@ -119,6 +123,6 @@ async function handleTaskUpdate(event) {
 
 // -------------------------------------------------------------------
 
-app.listen(PORT, async () => {
-  console.log(`🚀 Server listening on port ${PORT}`);
+app.listen(5000, "0.0.0.0", () => {
+  console.log("Server running on port 5000");
 });
