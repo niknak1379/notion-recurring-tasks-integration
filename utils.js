@@ -56,11 +56,17 @@ export async function getValidationToken(req) {
     );
     DB.end();
     console.log("get token results", query[0][0]);
-    if (query[0][0].refreshToken == "NULL") {
+    if (
+      (query[0][0].refreshToken == "NULL") |
+      (query[0][0].refreshToken == "")
+    ) {
       let notion_header = req.get("x-notion-header");
       console.log("headers", req.headers);
       console.log("notion sent header", notion_header);
-      await updateValidationToken(notion_header);
+      if (notion_header != null) {
+        await updateValidationToken(notion_header);
+      }
+
       return notion_header;
     }
     return query[0][0].refreshToken;
