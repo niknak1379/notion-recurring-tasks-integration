@@ -26,10 +26,10 @@ app.use(
   })
 );
 
-app.use((req, res, next) => {
+/* app.use((req, res, next) => {
   res.setHeader("Notion-Version", "2025-09-03");
   next();
-});
+}); */
 
 const PORT = process.env.PORT || 5000;
 const notion = new Client({ auth: process.env.INTERNAL_INTEGRATION_SECRET });
@@ -96,7 +96,7 @@ async function handleTaskUpdate(res, event) {
     return;
   }
   try {
-    if ((page.id = "2b4269f7-2b21-80ce-a7b6-eae879ac1b1b")) {
+    if (page.id == "2b4269f7-2b21-80ce-a7b6-eae879ac1b1b") {
       //wash id
       let status = await notion.pages.properties.retrieve({
         page_id: page.id,
@@ -106,7 +106,7 @@ async function handleTaskUpdate(res, event) {
         page_id: page.id,
         property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
       });
-
+      console.log("status: ", status, " Due Date: ", date);
       if (status == "Done") {
         // since i dont want a billion tasks in the dashboard ill just
         // change the status and push up the date instead of archving
