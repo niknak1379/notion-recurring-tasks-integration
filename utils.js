@@ -14,7 +14,7 @@ dotenv.config();
 
 export async function isTrustedNotionRequest(req) {
   try {
-    if (validationToken == null) {
+    if (verificationToken == null) {
       verificationToken = await getValidationToken(req);
     }
   } catch (e) {
