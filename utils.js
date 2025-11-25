@@ -58,6 +58,7 @@ export async function getValidationToken(req) {
     console.log("get token results", query[0][0]);
     if (query[0][0].refreshToken == "NULL") {
       let notion_header = req.get("x-notion-header");
+      console.log("headers", req.headers);
       console.log("notion sent header", notion_header);
       await updateValidationToken(notion_header);
       return notion_header;
