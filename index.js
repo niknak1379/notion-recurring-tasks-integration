@@ -46,7 +46,7 @@ app.get("/health", (req, res) => {
 app.post("/notion-webhook", async (req, res) => {
   try {
     const body = req.body;
-    //console.log("logging webhook full request", req);
+    console.log("logging webhook full request", req);
     console.log("logging webhook body", req.body);
 
     // handles subsequent verification requests

@@ -23,7 +23,7 @@ export async function isTrustedNotionRequest(req) {
       "sha256",
       verificationToken
     )
-      .update(JSON.stringify(req.body))
+      .update(JSON.stringify(body))
       .digest("hex")}`;
     let { "x-notion-signature": notion_header } = req.headers;
     log(calculatedSignature, notion_header);
