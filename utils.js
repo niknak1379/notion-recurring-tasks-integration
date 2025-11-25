@@ -26,7 +26,7 @@ export async function isTrustedNotionRequest(req) {
       .update(JSON.stringify(req.body))
       .digest("hex")}`;
     let { "x-notion-signature": notion_header } = req.headers;
-    console.log(calculatedSignature, notion_header);
+    // console.log(calculatedSignature, notion_header);
     return timingSafeEqual(
       Buffer.from(calculatedSignature),
       Buffer.from(notion_header)
@@ -94,7 +94,7 @@ export async function updateValidationToken(token) {
         WHERE id = ?`,
       [token, process.env.REFRESH_TOKEN_ID]
     );
-    console.log("update token results", query, query[0]);
+    // console.log("update token results", query, query[0]);
     DB.end();
   } catch (e) {
     console.warn(e);

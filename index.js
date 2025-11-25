@@ -59,6 +59,7 @@ app.post("/notion-webhook", async (req, res) => {
       console.log("unable to verify, wrong validation token");
       return res.status(401).send("Invalid token");
     }
+    console.log("verified, proceeding");
 
     // log event type
     if (body != null && "type" in body) {
@@ -95,7 +96,8 @@ async function handleTaskUpdate(res, event) {
     return;
   }
   try {
-    if ((page.id = "2b4269f7-2b21-80e7-9155-f14eaed7ae78")) {
+    if ((page.id = "2b4269f7-2b21-80ce-a7b6-eae879ac1b1b")) {
+      //wash id
       let status = await notion.pages.properties.retrieve({
         page_id: page.id,
         property_id: "blD%7D", //this is hard coded for now but its the Status ID property
