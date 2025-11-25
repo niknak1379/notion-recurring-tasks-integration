@@ -37,11 +37,11 @@ const notion = new Client({ auth: process.env.INTERNAL_INTEGRATION_SECRET });
 // ROUTES --------------------------------------------------------
 
 app.get("/", (req, res) => {
-  res.send("Server is alive 🚀");
+  return res.send("Server is alive 🚀");
 });
 // Health check
 app.get("/health", (req, res) => {
-  res.send("healthy");
+  return res.send("healthy");
 });
 // https://developers.notion.com/reference/webhooks-events-delivery
 // https://developers.notion.com/reference/query-a-data-source
@@ -76,7 +76,7 @@ app.post("/notion-webhook", async (req, res) => {
     }
   } catch (err) {
     console.error("Error handling webhook:", err);
-    res.status(500).send("Server error");
+    return res.status(500).send("Server error");
   }
 });
 
@@ -107,7 +107,7 @@ async function handleTaskUpdate(res, event) {
         property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
       });
       console.log("status: ", status, " Due Date: ", date);
-      if (status == "Done") {
+      if (status.status.name == "Done") {
         // since i dont want a billion tasks in the dashboard ill just
         // change the status and push up the date instead of archving
         // and then creating a new one.
@@ -135,6 +135,7 @@ async function handleTaskUpdate(res, event) {
     }
   } catch (e) {
     console.log(e);
+    return res.status(500);
   }
 }
 

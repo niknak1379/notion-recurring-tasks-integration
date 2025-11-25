@@ -54,14 +54,14 @@ export async function getValidationToken(req) {
       [process.env.REFRESH_TOKEN_ID]
     );
     DB.end();
-    console.log("get token results", query[0][0]);
+    //console.log("get token results", query[0][0]);
     if (
       (query[0][0].refreshToken == "NULL") |
       (query[0][0].refreshToken == "")
     ) {
       let { "x-notion-signature": notion_header } = req.headers;
-      console.log("headers", req.headers);
-      console.log("notion sent header", notion_header);
+      //console.log("headers", req.headers);
+      //console.log("notion sent header", notion_header);
       if (notion_header != null) {
         await updateValidationToken(notion_header);
       }
