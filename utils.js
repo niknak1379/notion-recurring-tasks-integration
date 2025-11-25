@@ -29,7 +29,7 @@ export async function isTrustedNotionRequest(req) {
 
     return timingSafeEqual(
       Buffer.from(calculatedSignature),
-      Buffer.from(headers["X-Notion-Signature"])
+      Buffer.from(headers["x-notion-signature"])
     );
   } catch (e) {
     console.warn(e);
