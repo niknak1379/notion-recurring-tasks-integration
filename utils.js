@@ -45,9 +45,9 @@ export async function getValidationToken(req) {
 
     let query = await DB.query(
       `
-        SELECT refreshToken FROM Users
-        WHERE name = ?`,
-      [user]
+        SELECT refreshToken FROM Tokens
+        WHERE id = ?`,
+      [process.env.REFRESH_TOKEN_ID]
     );
     DB.end();
     console.log("get token results", query, query[0], query[0][0]);
