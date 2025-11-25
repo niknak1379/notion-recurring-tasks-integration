@@ -16,6 +16,7 @@ export async function isTrustedNotionRequest(req) {
   try {
     if (verificationToken == null) {
       verificationToken = await getValidationToken(req);
+      console.log("token", verificationToken);
     }
 
     // This body should come from your request body for subsequent validations
