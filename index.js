@@ -48,14 +48,8 @@ app.post("/notion-webhook", async (req, res) => {
     const body = req.body;
     console.log("logging webhook request", req, req.body);
 
-    // handles intial verification
-    if (body.verification_token != null) {
-      console.log("verification token: ", verification_token);
-      updateValidationToken(body.verification_token);
-    }
-
     // handles subsequent verification requests
-    else if (!isTrustedNotionRequest(req)) {
+    if (!isTrustedNotionRequest(req)) {
       console.log("unable to verify, wrong validation token");
       return res.status(401).send("Invalid token");
     }

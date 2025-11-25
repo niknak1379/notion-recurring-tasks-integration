@@ -12,9 +12,9 @@ export let verificationToken = null;
 
 dotenv.config();
 
-export function isTrustedNotionRequest(req) {
+export async function isTrustedNotionRequest(req) {
   if (validationToken == null) {
-    verificationToken = getValidationToken();
+    verificationToken = await getValidationToken(req);
   }
   // This body should come from your request body for subsequent validations
 
@@ -28,7 +28,7 @@ export function isTrustedNotionRequest(req) {
   );
 }
 
-export async function getValidationToken() {
+export async function getValidationToken(req) {
   const DB = mysql
     .createPool({
       host: process.env.MYSQL_HOST,
@@ -45,7 +45,13 @@ export async function getValidationToken() {
     [user]
   );
   DB.end();
-  console.log("update token results", query, query[0], query[0][0]);
+  console.log("get token results", query, query[0], query[0][0]);
+  if (query[0][0].refreshToken == null) {
+    let notion_header = req.get("x-notion-header");
+    console.log(notion_header);
+    await updateValidationToken(notion_header);
+    return notion_header;
+  }
   return query[0][0].refreshToken;
 }
 
@@ -68,6 +74,7 @@ export async function updateValidationToken(token) {
         WHERE id = ?`,
     [token, process.env.REFRESH_TOKEN_ID]
   );
+  console.log("update token results", query, query[0]);
   DB.end();
 }
 
