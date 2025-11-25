@@ -26,7 +26,7 @@ export async function isTrustedNotionRequest(req) {
       .update(JSON.stringify(req.body))
       .digest("hex")}`;
     let { "x-notion-signature": notion_header } = req.headers;
-    log(calculatedSignature, notion_header);
+    console.log(calculatedSignature, notion_header);
     return timingSafeEqual(
       Buffer.from(calculatedSignature),
       Buffer.from(notion_header)
