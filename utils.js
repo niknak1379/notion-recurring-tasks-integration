@@ -60,8 +60,7 @@ export async function getValidationToken(req) {
       (query[0][0].refreshToken == "NULL") |
       (query[0][0].refreshToken == "")
     ) {
-      let notion_header =
-        req.get("x-notion-header") | req.headers["x-notion-signature"];
+      let { "x-notion-signature": notion_header } = req.headers;
       console.log("headers", req.headers);
       console.log("notion sent header", notion_header);
       if (notion_header != null) {
