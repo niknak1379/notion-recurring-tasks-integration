@@ -46,7 +46,8 @@ app.get("/health", (req, res) => {
 app.post("/notion-webhook", async (req, res) => {
   try {
     const body = req.body;
-    console.log("logging webhook request", req, req.body);
+    console.log("logging webhook full request", req);
+    console.log("logging webhook body", req.body);
 
     // handles subsequent verification requests
     if (!isTrustedNotionRequest(req)) {
@@ -55,16 +56,18 @@ app.post("/notion-webhook", async (req, res) => {
     }
 
     // log event type
-    const eventType = body.type;
-    console.log(`Received Notion event: ${eventType}`);
+    if ("type" in body) {
+      const eventType = body.type;
+      console.log(`Received Notion event: ${eventType}`);
 
-    if (eventType === "data_source.content_updated") {
-      await handleTaskUpdate(body);
-    } else {
-      console.log("Ignoring event type ", eventType);
+      if (eventType === "data_source.content_updated") {
+        await handleTaskUpdate(res, body);
+      } else {
+        console.log("Ignoring event type ", eventType);
+      }
+
+      res.status(200).send("OK");
     }
-
-    res.status(200).send("OK");
   } catch (err) {
     console.error("Error handling webhook:", err);
     res.status(500).send("Server error");
@@ -78,7 +81,7 @@ app.post("/notion-webhook", async (req, res) => {
  * recurring task and if so set it up
  * for its next appearance
  */
-async function handleTaskUpdate(event) {
+async function handleTaskUpdate(res, event) {
   console.log(event);
 
   let page = event?.data?.parent;
@@ -86,32 +89,40 @@ async function handleTaskUpdate(event) {
     console.warn("No page on event");
     return;
   }
-  let status = await notion.pages.properties.retrieve({
-    page_id: page.id,
-    property_id: "blD%7D", //this is hard coded for now but its the Status ID property
-  });
-  let date = await notion.pages.properties.retrieve({
-    page_id: page.id,
-    property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
-  });
-
-  if (status == "Done") {
-    // since i dont want a billion tasks in the dashboard ill just
-    // change the status and push up the date instead of archving
-    // and then creating a new one.
-    await notion.pages.update({
+  try {
+    let status = await notion.pages.properties.retrieve({
       page_id: page.id,
-      properties: {
-        Status: {
-          status: { name: "To-Do" },
-        },
-        "Due Date": {
-          date: {
-            start: addDays(date.date.start, 2),
+      property_id: "blD%7D", //this is hard coded for now but its the Status ID property
+    });
+    let date = await notion.pages.properties.retrieve({
+      page_id: page.id,
+      property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
+    });
+
+    if (status == "Done") {
+      // since i dont want a billion tasks in the dashboard ill just
+      // change the status and push up the date instead of archving
+      // and then creating a new one.
+      await notion.pages.update({
+        page_id: page.id,
+        properties: {
+          Status: {
+            status: { name: "To-Do" },
+          },
+          "Due Date": {
+            date: {
+              start: addDays(date.date.start, 2),
+            },
           },
         },
-      },
-    });
+      });
+      console.log("event successfully altered");
+      res.send("success").status(200);
+    }
+    console.log("unrelated event no changes done");
+    res.send("success").status(200);
+  } catch (e) {
+    console.log(e);
   }
 }
 
