@@ -56,7 +56,7 @@ app.post("/notion-webhook", async (req, res) => {
     }
 
     // log event type
-    if ("type" in body) {
+    if (body != null && "type" in body) {
       const eventType = body.type;
       console.log(`Received Notion event: ${eventType}`);
 

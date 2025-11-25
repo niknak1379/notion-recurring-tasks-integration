@@ -17,19 +17,23 @@ export async function isTrustedNotionRequest(req) {
     if (verificationToken == null) {
       verificationToken = await getValidationToken(req);
     }
+
+    // This body should come from your request body for subsequent validations
+
+    const calculatedSignature = `sha256=${createHmac(
+      "sha256",
+      verificationToken
+    )
+      .update(JSON.stringify(req.body))
+      .digest("hex")}`;
+
+    return timingSafeEqual(
+      Buffer.from(calculatedSignature),
+      Buffer.from(headers["X-Notion-Signature"])
+    );
   } catch (e) {
     console.warn(e);
   }
-  // This body should come from your request body for subsequent validations
-
-  const calculatedSignature = `sha256=${createHmac("sha256", verificationToken)
-    .update(JSON.stringify(req.body))
-    .digest("hex")}`;
-
-  return timingSafeEqual(
-    Buffer.from(calculatedSignature),
-    Buffer.from(headers["X-Notion-Signature"])
-  );
 }
 
 export async function getValidationToken(req) {
@@ -50,10 +54,10 @@ export async function getValidationToken(req) {
       [process.env.REFRESH_TOKEN_ID]
     );
     DB.end();
-    console.log("get token results", query, query[0], query[0][0]);
-    if (query[0][0].refreshToken == null) {
+    console.log("get token results", query[0][0]);
+    if (query[0][0].refreshToken == "NULL") {
       let notion_header = req.get("x-notion-header");
-      console.log(notion_header);
+      console.log("notion sent header", notion_header);
       await updateValidationToken(notion_header);
       return notion_header;
     }
