@@ -74,7 +74,9 @@ app.post("/notion-webhook", async (req, res) => {
     }
   } catch (err) {
     console.error("Error handling webhook:", err);
-    return res.status(500).send("Server error");
+    if (!res.headersSent()) {
+      return res.status(500).send("Server error");
+    }
   }
 });
 
