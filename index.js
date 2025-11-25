@@ -72,7 +72,7 @@ app.post("/notion-webhook", async (req, res) => {
         console.log("Ignoring event type ", eventType);
       }
 
-      res.status(200).send("OK");
+      return res.status(200).send("OK");
     }
   } catch (err) {
     console.error("Error handling webhook:", err);
@@ -125,13 +125,13 @@ async function handleTaskUpdate(res, event) {
           },
         });
         console.log("event successfully altered");
-        res.send("success").status(200);
+        return res.send("success").status(200);
       }
       console.log("unrelated event no changes done");
-      res.send("success").status(200);
+      return res.send("success").status(200);
     } else {
       console.log("irrelevent page, ignoring event");
-      res.status(200);
+      return res.status(200);
     }
   } catch (e) {
     console.log(e);
