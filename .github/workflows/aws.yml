@@ -34,7 +34,7 @@ jobs:
           cache-from: type=registry,ref=nikanostovan/personal_website_backend:latest
           cache-to: type=inline
 
-      - name: Add EC2 to known hosts
+      - name: Add EC2 to known ho sts
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.EC2_INSTANCE_IP }} >> ~/.ssh/known_hosts
