@@ -1,6 +1,6 @@
 services:
   backend:
-    image: nikanostovan/notin_tasks_integration:latest
+    image: nikanostovan/notion_tasks_integration:latest
     container_name: api-gateway-backend
     restart: unless-stopped
     ports:
