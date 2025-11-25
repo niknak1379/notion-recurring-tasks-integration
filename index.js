@@ -20,6 +20,7 @@ let rawBodySaver = function (req, res, buf, encoding) {
     req.rawBody = buf.toString(encoding || "utf8");
   }
 };
+app.use(express.raw());
 
 app.use((req, res, next) => {
   res.setHeader("Notion-Version", "2025-09-03");
