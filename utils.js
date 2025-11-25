@@ -19,18 +19,17 @@ export async function isTrustedNotionRequest(req) {
       console.log("token", verificationToken);
     }
 
-    // This body should come from your request body for subsequent validations
-
     const calculatedSignature = `sha256=${createHmac(
       "sha256",
       verificationToken
     )
       .update(JSON.stringify(req.body))
       .digest("hex")}`;
-
+    let { "x-notion-signature": notion_header } = req.headers;
+    log(calculatedSignature, notion_header);
     return timingSafeEqual(
       Buffer.from(calculatedSignature),
-      Buffer.from(headers["x-notion-signature"])
+      Buffer.from(notion_header)
     );
   } catch (e) {
     console.warn(e);
