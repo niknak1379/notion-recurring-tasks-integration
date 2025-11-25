@@ -71,8 +71,6 @@ app.post("/notion-webhook", async (req, res) => {
       } else {
         console.log("Ignoring event type ", eventType);
       }
-
-      return res.status(200).send("OK");
     }
   } catch (err) {
     console.error("Error handling webhook:", err);
