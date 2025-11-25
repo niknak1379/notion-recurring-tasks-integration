@@ -53,9 +53,9 @@ app.post("/notion-webhook", async (req, res) => {
     const body = req.body;
     console.log("logging webhook full request", req);
     console.log("logging webhook body", req.body);
-    res.status(200).send("OK");
+
     // handles subsequent verification requests
-    /* if (!isTrustedNotionRequest(req)) {
+    if (!isTrustedNotionRequest(req)) {
       console.log("unable to verify, wrong validation token");
       return res.status(401).send("Invalid token");
     }
@@ -72,7 +72,7 @@ app.post("/notion-webhook", async (req, res) => {
       }
 
       res.status(200).send("OK");
-    } */
+    }
   } catch (err) {
     console.error("Error handling webhook:", err);
     res.status(500).send("Server error");
