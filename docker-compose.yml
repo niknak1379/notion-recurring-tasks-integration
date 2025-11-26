@@ -1,7 +1,7 @@
 services:
   backend:
     image: nikanostovan/notion_tasks_integration:latest
-    container_name: api-gateway-backend
+    container_name: notion_tasks_integration
     restart: unless-stopped
     ports:
       - "5000:5000"
