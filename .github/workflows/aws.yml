@@ -51,12 +51,12 @@ jobs:
           PORT=8080
 
           # Database
-          MYSQL_HOST=${{ secrets.MYSQL_HOST }}
-          MYSQL_USER=${{ secrets.MYSQL_USER }}
-          MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
-          MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
-          REFRESH_TOKEN_ID=${{ secrets.REFRESH_TOKEN_ID }}
-          INTERNAL_INTEGRATION_SECRET= ${{ secrets.INTERNAL_INTEGRATION_SECRET}}
+          MYSQL_HOST="${{ secrets.MYSQL_HOST }}"
+          MYSQL_USER="${{ secrets.MYSQL_USER }}"
+          MYSQL_PASSWORD="${{ secrets.MYSQL_PASSWORD }}"
+          MYSQL_DATABASE="${{ secrets.MYSQL_DATABASE }}"
+          REFRESH_TOKEN_ID="${{ secrets.REFRESH_TOKEN_ID }}"
+          INTERNAL_INTEGRATION_SECRET="${{ secrets.INTERNAL_INTEGRATION_SECRET }}"
 
           EOL
 
