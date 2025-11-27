@@ -71,6 +71,9 @@ app.post("/notion-webhook", async (req, res) => {
       } else {
         console.log("Ignoring event type ", eventType);
       }
+    } else {
+      console.log("no request body found, still returning 200");
+      return res.send("").status(200);
     }
   } catch (err) {
     console.error("Error handling webhook:", err);
@@ -96,7 +99,51 @@ async function handleTaskUpdate(res, event) {
     return;
   }
   try {
-    if (page.id == "2b4269f7-2b21-80ce-a7b6-eae879ac1b1b") {
+    // get the title here, instead of ID
+    // Sample response type from Notion API
+    /*     response {
+              object: 'list',
+              results: [
+                {
+                  object: 'property_item',
+                  type: 'title',
+                  id: 'title',
+                  title: [Object]
+                }
+              ],
+              next_cursor: null,
+              has_more: false,
+              type: 'property_item',
+              property_item: { id: 'title', next_url: null, type: 'title', title: {} },
+              request_id: '8f8d2b03-a85d-4aaa-a722-a7042bae4158'
+            } 
+
+
+            title object format:  
+            response {
+              type: 'text',
+              text: { content: 'Wash Bedsheets', link: null },
+              annotations: {
+                bold: false,
+                italic: false,
+                strikethrough: false,
+                underline: false,
+                code: false,
+                color: 'default'
+              },
+              plain_text: 'Wash Bedsheets',
+              href: null
+            }
+            */
+    let title = await notion.pages.properties.retrieve({
+      page_id: "2b4269f7-2b21-80ce-a7b6-eae879ac1b1b",
+      property_id: "title", //this is hard coded for now but its the Date ID property
+    });
+    console.log(
+      "logging title of retrieved page",
+      title.results[0].title.plain_text
+    );
+    if (title.results[0].title.plain_text == "Wash Bedsheets") {
       //wash id
       let status = await notion.pages.properties.retrieve({
         page_id: page.id,
@@ -126,21 +173,34 @@ async function handleTaskUpdate(res, event) {
         });
         console.log("event successfully altered");
         return res.send("success").status(200);
+      } else {
+        console.log("correct page, conditions for change not met");
+        return res.send("success").status(200);
       }
-      console.log("unrelated event no changes done");
-      return res.send("success").status(200);
     } else {
       console.log("irrelevent page, ignoring event");
-      return res.status(200);
+      return res.send("").status(200);
     }
   } catch (e) {
     console.log(e);
-    return res.status(500);
+    return res.send("").status(500);
   }
 }
 
 // -------------------------------------------------------------------
 
-app.listen(5000, "0.0.0.0", () => {
+app.listen(5000, "0.0.0.0", async () => {
   console.log("Server running on port 5000");
+  // https://www.notion.so/2b4269f72b2181e2a10cdc9bbb74fcce?v=2b4269f72b2181838bef000c0def3ecb
+  // https://www.notion.so/Task-Management-Kanban-2b4269f72b2180bab647ea373eac964a
+
+  /* const dataSourceId = process.env.dataSourceId;
+  const response = await notion.dataSources.retrieve({
+    data_source_id: dataSourceId,
+  }); */
+  /*   let title = await notion.pages.properties.retrieve({
+    page_id: "2b4269f7-2b21-80ce-a7b6-eae879ac1b1b",
+    property_id: "title", //this is hard coded for now but its the Date ID property
+  }); */
+  console.log("response", title.results[0].title);
 });
