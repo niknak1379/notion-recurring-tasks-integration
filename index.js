@@ -202,5 +202,5 @@ app.listen(5000, "0.0.0.0", async () => {
     page_id: "2b4269f7-2b21-80ce-a7b6-eae879ac1b1b",
     property_id: "title", //this is hard coded for now but its the Date ID property
   }); */
-  console.log("response", title.results[0].title);
+  //console.log("response", title.results[0].title);
 });
