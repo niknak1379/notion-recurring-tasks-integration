@@ -48,18 +48,41 @@ app.get("/health", (req, res) => {
 // https://developers.notion.com/reference/retrieve-a-page
 // https://developers.notion.com/reference/retrieve-a-page-property
 // Main webhook endpoint
+// sample incoming event structure:
+/*
+    logging webhook body {
+      id: '084e4f4d-5766-43f3-b1fb-7cf07557601a',
+      timestamp: '2025-12-01T18:46:20.822Z',
+      workspace_id: '25528fac-c6f3-4290-b1b6-c951b07b82a1',
+      workspace_name: "nikan ostovan's Notion",
+      subscription_id: '2b6d872b-594c-819d-a73b-00991c118585',
+      integration_id: '2b4d872b-594c-8052-abba-00370826bb42',
+      authors: [ { id: '155b14e0-922a-4b1a-be25-3363d7bc4594', type: 'person' } ],
+      attempt_number: 6,
+      api_version: '2025-09-03',
+      entity: { id: '2bc269f7-2b21-80c9-b373-e810c6b0ab68', type: 'page' },
+      type: 'page.deleted',
+      data: {
+        parent: {
+          id: '2b4269f7-2b21-81e2-a10c-dc9bbb74fcce',
+          type: 'database',
+          data_source_id: '2b4269f7-2b21-8123-9dd0-000bdddf3adf'
+        }
+      }
+    }
+  */
 app.post("/notion-webhook", async (req, res) => {
   try {
     const body = req.body;
     // console.log("logging webhook full request", req);
-    console.log("logging webhook body", req.body);
+    console.log("Incoming Notion Event from Web-hook:\n", req.body, "\n");
 
     // handles subsequent verification requests
     if (!isTrustedNotionRequest(req)) {
       console.log("unable to verify, wrong validation token");
       return res.status(401).send("Invalid token");
     }
-    console.log("verified, proceeding");
+    console.log("verified notion signature, proceeding");
 
     // log event type
     if (body != null && "type" in body) {
@@ -69,7 +92,11 @@ app.post("/notion-webhook", async (req, res) => {
       if (eventType === "page.properties_updated") {
         await handleTaskUpdate(res, body);
       } else {
-        console.log("Ignoring event type ", eventType);
+        console.log(
+          "Ignoring event type, end of processing: ",
+          eventType,
+          "\n"
+        );
       }
     } else {
       console.log("no request body found, still returning 200");
@@ -91,7 +118,7 @@ app.post("/notion-webhook", async (req, res) => {
  * for its next appearance
  */
 async function handleTaskUpdate(res, event) {
-  console.log(event);
+  console.log("handleTaskUpdate processing event:", event);
 
   let page = event?.entity;
   if (page.type != "page") {
@@ -136,11 +163,11 @@ async function handleTaskUpdate(res, event) {
             }
             */
     let title = await notion.pages.properties.retrieve({
-      page_id: "2b4269f7-2b21-80ce-a7b6-eae879ac1b1b",
+      page_id: page.id,
       property_id: "title", //this is hard coded for now but its the Date ID property
     });
     console.log(
-      "logging title of retrieved page",
+      "logging title of retrieved page:",
       title.results[0].title.plain_text
     );
     if (title.results[0].title.plain_text == "Wash Bedsheets") {
