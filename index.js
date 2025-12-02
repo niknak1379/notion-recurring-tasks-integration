@@ -80,7 +80,7 @@ app.post("/notion-webhook", async (req, res) => {
     // handles subsequent verification requests
     if (!isTrustedNotionRequest(req)) {
       console.log("unable to verify, wrong validation token");
-      return res.status(401).send("Invalid token");
+      return res.status(200).send("Invalid token");
     }
     console.log("verified notion signature, proceeding");
 
@@ -100,12 +100,12 @@ app.post("/notion-webhook", async (req, res) => {
       }
     } else {
       console.log("no request body found, still returning 200");
-      return res.send("").status(200);
+      return res.status(200).send("");
     }
   } catch (err) {
     console.error("Error handling webhook:", err);
     if (!res.headersSent()) {
-      return res.status(500).send("Server error");
+      return res.status(200).send("Server error");
     }
   }
 });
@@ -199,18 +199,18 @@ async function handleTaskUpdate(res, event) {
           },
         });
         console.log("event successfully altered");
-        return res.send("success").status(200);
+        return res.status(200).send("success");
       } else {
         console.log("correct page, conditions for change not met");
-        return res.send("success").status(200);
+        return res.status(200).send("success");
       }
     } else {
       console.log("irrelevent page, ignoring event");
-      return res.send("").status(200);
+      return res.status(200).send("");
     }
   } catch (e) {
     console.log(e);
-    return res.send("").status(500);
+    return res.status(203).send("");
   }
 }
 
