@@ -182,7 +182,7 @@ async function handleTaskUpdate(event) {
 app.listen(5000, "0.0.0.0", async () => {
   console.log("Server running on port 5000");
   try {
-    await getToBeRecurred();
+    //await getToBeRecurred();
   } catch (e) {
     console.log(e);
   }

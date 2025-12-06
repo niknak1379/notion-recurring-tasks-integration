@@ -110,21 +110,28 @@ export async function syncDataBase() {
   const response = await notion.dataSources.query({
     data_source_id: dataSourceId,
   });
-  /*   for (task of response.results) {
-    const page = notion.pages.retrieve({ page_id: task.id });
-    let query = await DB.query(
-      `
+
+  console.log("addtoArchiveList", query[0]);
+  try {
+    for (task of response.results) {
+      const page = notion.pages.retrieve({ page_id: task.id });
+      let query = await DB.query(
+        `
       INSERT INTO tasks (page_ID, dueDate, page_status)
       Values(?, ?, ?)
     `,
-      [page.id, page.properties["Due Date"].date, page.properties.Status]
-    ); */
-  console.log("addtoArchiveList", query[0]);
-  try {
+        [page.id, page.properties["Due Date"].date, page.properties.Status]
+      );
+    }
   } catch (e) {
     console.log(e);
   }
 }
+
+// <--------------------------------Archive logic ------------->
+// <--------------------------------Archive logic ------------->
+// <--------------------------------Archive logic ------------->
+// <--------------------------------Archive logic ------------->
 
 export async function getToArchiveList() {
   let query = await DB.query(
@@ -156,6 +163,11 @@ export async function addToArchiveList(pageID, lastModified) {
     console.log(e);
   }
 }
+
+// <--------------------------------DueDate Extension logic ------------->
+// <--------------------------------DueDate Extension logic ------------->
+// <--------------------------------DueDate Extension logic ------------->
+// <--------------------------------DueDate Extension logic ------------->
 export async function getToDueDateChangeList() {
   let query = await DB.query(
     `
@@ -186,16 +198,16 @@ export async function getToBeRecurred() {
   try {
     let query = await DB.query(
       `
-    SELECT (page_id, recurrByDays) FROM tasks
-    WHERE isRecurring = 1
-    AND page_status = "DONE"
+    SELECT page_id, recurrByDays FROM tasks
+    WHERE isRecurring = 1 AND page_status = "DONE"
     `,
       []
     );
-    console.log("toBeRecurred", query[0]);
-    for (recurringTask of query[0]) {
-      toBeArchived.set("recurringTask.page_id", "recurrByDays");
+    //console.log("toBeRecurred", query[0]);
+    for (let recurringTask of query[0]) {
+      toBeRecurred.set(recurringTask.page_id, recurringTask.recurrByDays);
     }
+    console.log("toBeRecurred", toBeRecurred);
   } catch (e) {
     console.log(e);
   }
