@@ -8,6 +8,9 @@ import {
   isTrustedNotionRequest,
   updateValidationToken,
   addDays,
+  toBeRecurred,
+  RecurTask,
+  getToBeRecurred,
 } from "./Utils/utils.js";
 
 dotenv.config();
@@ -89,14 +92,19 @@ app.post("/notion-webhook", async (req, res) => {
       const eventType = body.type;
       console.log(`Received Notion event: ${eventType}`);
 
-      if (eventType === "page.properties_updated") {
-        await handleTaskUpdate(res, body);
+      if (
+        eventType === "page.properties_updated" ||
+        eventType === "page.created"
+      ) {
+        await handleTaskUpdate(body);
+        res.sendStatus(200);
       } else {
         console.log(
           "Ignoring event type, end of processing: ",
           eventType,
           "\n"
         );
+        res.sendStatus(200);
       }
     } else {
       console.log("no request body found, still returning 200");
@@ -153,65 +161,19 @@ app.post("/notion-webhook", async (req, res) => {
             }
             
  */
-async function handleTaskUpdate(res, event) {
-  console.log("handleTaskUpdate processing event:", event);
-
-  let page = event?.entity;
-  if (page.type != "page") {
-    console.warn("No page on event");
-    return res.sendStatus(200);
-  }
-  try {
-    // get the title here, instead of ID
-    let title = await notion.pages.properties.retrieve({
-      page_id: page.id,
-      property_id: "title", //this is hard coded for now but its the Date ID property
-    });
-    console.log(
-      "logging title of retrieved page:",
-      title.results[0].title.plain_text
-    );
-    if (title.results[0].title.plain_text == "Wash Bedsheets") {
-      //wash id
-      let status = await notion.pages.properties.retrieve({
-        page_id: page.id,
-        property_id: "blD%7D", //this is hard coded for now but its the Status ID property
-      });
-      let date = await notion.pages.properties.retrieve({
-        page_id: page.id,
-        property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
-      });
-      console.log("status: ", status, " Due Date: ", date);
-      if (status.status.name == "Done") {
-        // since i dont want a billion tasks in the dashboard ill just
-        // change the status and push up the date instead of archving
-        // and then creating a new one.
-        await notion.pages.update({
-          page_id: page.id,
-          properties: {
-            Status: {
-              status: { name: "To-Do" },
-            },
-            "Due Date": {
-              date: {
-                start: addDays(date.date.start, 2),
-              },
-            },
-          },
-        });
-        console.log("event successfully altered");
-        return res.sendStatus(200);
-      } else {
-        console.log("correct page, conditions for change not met");
-        return res.sendStatus(200);
+async function handleTaskUpdate(event) {
+  if (event.type === "page.properties_updated") {
+    if (toBeRecurred.get(event.entity.id) != null) {
+      try {
+        await RecurTask(event.entity.id, toBeRecurred.get(event.entity.id));
+      } catch (e) {
+        console.log(
+          "Error in Recurr Task for pageID:",
+          `${event.entity.id} \n`,
+          e
+        );
       }
-    } else {
-      console.log("irrelevent page, ignoring event");
-      return res.sendStatus(200);
     }
-  } catch (e) {
-    console.log(e);
-    return res.sendStatus(200);
   }
 }
 
@@ -219,16 +181,9 @@ async function handleTaskUpdate(res, event) {
 
 app.listen(5000, "0.0.0.0", async () => {
   console.log("Server running on port 5000");
-  // https://www.notion.so/2b4269f72b2181e2a10cdc9bbb74fcce?v=2b4269f72b2181838bef000c0def3ecb
-  // https://www.notion.so/Task-Management-Kanban-2b4269f72b2180bab647ea373eac964a
-
-  /* const dataSourceId = process.env.dataSourceId;
-  const response = await notion.dataSources.retrieve({
-    data_source_id: dataSourceId,
-  }); */
-  /*   let title = await notion.pages.properties.retrieve({
-    page_id: "2b4269f7-2b21-80ce-a7b6-eae879ac1b1b",
-    property_id: "title", //this is hard coded for now but its the Date ID property
-  }); */
-  //console.log("response", title.results[0].title);
+  try {
+    await getToBeRecurred();
+  } catch (e) {
+    console.log(e);
+  }
 });

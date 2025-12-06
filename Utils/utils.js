@@ -12,7 +12,7 @@ import dotenv from "dotenv";
 export let verificationToken = null;
 export let toBeArchived = [];
 export let toBeDueDateChanged = [];
-export let toBeRecurred = [];
+export let toBeRecurred = new Map();
 dotenv.config();
 const DB = mysql
   .createPool({
@@ -102,11 +102,15 @@ export function addDays(isoString, days) {
 }
 
 // <--------------------------------Data Base logic ------------->
+// <--------------------------------Data Base logic ------------->
+// <--------------------------------Data Base logic ------------->
+// <--------------------------------Data Base logic ------------->
+
 export async function syncDataBase() {
   const response = await notion.dataSources.query({
     data_source_id: dataSourceId,
   });
-/*   for (task of response.results) {
+  /*   for (task of response.results) {
     const page = notion.pages.retrieve({ page_id: task.id });
     let query = await DB.query(
       `
@@ -115,7 +119,10 @@ export async function syncDataBase() {
     `,
       [page.id, page.properties["Due Date"].date, page.properties.Status]
     ); */
-    console.log("addtoArchiveList", query[0]);
+  console.log("addtoArchiveList", query[0]);
+  try {
+  } catch (e) {
+    console.log(e);
   }
 }
 
@@ -129,17 +136,25 @@ export async function getToArchiveList() {
   );
   console.log("gettoArchiveList", query[0]);
   toBeArchived = query[0][0];
+  try {
+  } catch (e) {
+    console.log(e);
+  }
 }
 // last modified ie status change
 export async function addToArchiveList(pageID, lastModified) {
   let query = await DB.query(
     `
-      INSERT INTO tasks (page_ID, dueDate, page_status)
+      INSERT INTO tasks (page_id, deadline, page_status)
       Values(?, ?, "Done")
     `,
     [pageID, lastModified]
   );
   console.log("addtoArchiveList", query[0]);
+  try {
+  } catch (e) {
+    console.log(e);
+  }
 }
 export async function getToDueDateChangeList() {
   let query = await DB.query(
@@ -148,25 +163,87 @@ export async function getToDueDateChangeList() {
     WHERE page_status IN ("In Progress", "To-Do")`
   );
   console.log("addToDueDateChangeList", query[0]);
+  try {
+  } catch (e) {
+    console.log(e);
+  }
 }
 export async function addToDueDateChangeList(pageID, dueDate, status) {
   let query = await DB.query(
     `
-      INSERT INTO tasks (page_ID, dueDate, page_status)
+      INSERT INTO tasks (page_id, deadline, page_status)
       Values(?, ?, ?)
     `,
     [pageID, dueDate, status]
   );
   console.log("addtoArchiveList", query[0]);
+  try {
+  } catch (e) {
+    console.log(e);
+  }
 }
 export async function getToBeRecurred() {
-  let query = await DB.query(
-    `
-    SELECT * FROM tasks
-    `
-  );
-  console.log("addToDueDateChangeList", query[0]);
+  try {
+    let query = await DB.query(
+      `
+    SELECT (page_id, recurrByDays) FROM tasks
+    WHERE isRecurring = 1
+    AND page_status = "DONE"
+    `,
+      []
+    );
+    console.log("toBeRecurred", query[0]);
+    for (recurringTask of query[0]) {
+      toBeArchived.set("recurringTask.page_id", "recurrByDays");
+    }
+  } catch (e) {
+    console.log(e);
+  }
 }
-export async function RecurTask(pageID) {
-  // check if pageID.status is done, if it is then recurr task
+
+// low level give it pageID, will find the status
+export async function RecurTask(pageID, recurrByDays) {
+  try {
+    // get the title here, instead of ID
+    let title = await notion.pages.properties.retrieve({
+      page_id: pageID,
+      property_id: "title", //this is hard coded for now but its the Date ID property
+    });
+    console.log(
+      "logging title of retrieved page:",
+      title.results[0].title.plain_text
+    );
+    let status = await notion.pages.properties.retrieve({
+      page_id: page.id,
+      property_id: "blD%7D", //this is hard coded for now but its the Status ID property
+    });
+    let date = await notion.pages.properties.retrieve({
+      page_id: page.id,
+      property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
+    });
+    console.log("status: ", status, " Due Date: ", date);
+    if (status.status.name == "Done") {
+      // since i dont want a billion tasks in the dashboard ill just
+      // change the status and push up the date instead of archving
+      // and then creating a new one.
+      await notion.pages.update({
+        page_id: page.id,
+        properties: {
+          Status: {
+            status: { name: "To-Do" },
+          },
+          "Due Date": {
+            date: {
+              start: addDays(date.date.start, recurrByDays),
+            },
+          },
+        },
+      });
+      console.log("event successfully altered");
+    } else {
+      console.log("correct page, conditions for change not met");
+    }
+  } catch (e) {
+    console.log(e);
+  }
 }
