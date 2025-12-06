@@ -8,7 +8,7 @@ import {
   isTrustedNotionRequest,
   updateValidationToken,
   addDays,
-} from "./utils.js";
+} from "./Utils/utils.js";
 
 dotenv.config();
 
@@ -116,18 +116,8 @@ app.post("/notion-webhook", async (req, res) => {
  * See if it the task changed is the
  * recurring task and if so set it up
  * for its next appearance
- */
-async function handleTaskUpdate(res, event) {
-  console.log("handleTaskUpdate processing event:", event);
-
-  let page = event?.entity;
-  if (page.type != "page") {
-    console.warn("No page on event");
-    return res.sendStatus(200);
-  }
-  try {
-    // get the title here, instead of ID
-    // Sample response type from Notion API
+ * 
+ *     // Sample response type from Notion API
     /*     response {
               object: 'list',
               results: [
@@ -161,7 +151,18 @@ async function handleTaskUpdate(res, event) {
               plain_text: 'Wash Bedsheets',
               href: null
             }
-            */
+            
+ */
+async function handleTaskUpdate(res, event) {
+  console.log("handleTaskUpdate processing event:", event);
+
+  let page = event?.entity;
+  if (page.type != "page") {
+    console.warn("No page on event");
+    return res.sendStatus(200);
+  }
+  try {
+    // get the title here, instead of ID
     let title = await notion.pages.properties.retrieve({
       page_id: page.id,
       property_id: "title", //this is hard coded for now but its the Date ID property
