@@ -262,31 +262,41 @@ export async function RecurTask(pageID, recurrByDays) {
       title.results[0].title.plain_text
     );
     let status = await notion.pages.properties.retrieve({
-      page_id: page.id,
+      page_id: pageID,
       property_id: "blD%7D", //this is hard coded for now but its the Status ID property
     });
     let date = await notion.pages.properties.retrieve({
-      page_id: page.id,
+      page_id: pageID,
       property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
     });
+    let newDeadline = addDays(date.date.start, recurrByDays);
     console.log("status: ", status, " Due Date: ", date);
     if (status.status.name == "Done") {
       // since i dont want a billion tasks in the dashboard ill just
       // change the status and push up the date instead of archving
       // and then creating a new one.
       await notion.pages.update({
-        page_id: page.id,
+        page_id: pageID,
         properties: {
           Status: {
             status: { name: "To-Do" },
           },
           "Due Date": {
             date: {
-              start: addDays(date.date.start, recurrByDays),
+              start: newDeadline,
             },
           },
         },
       });
+      let query = await DB.query(
+        `
+              UPDATE tasks
+              SET page_status = "To-Do"
+              SET deadline = ?
+              WHERE page_id = ?
+              `,
+        [newDeadline, pageID]
+      );
       console.log("event successfully altered");
     } else {
       console.log("correct page, conditions for change not met");
