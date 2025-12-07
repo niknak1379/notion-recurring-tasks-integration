@@ -291,8 +291,8 @@ export async function RecurTask(pageID, recurrByDays) {
       let query = await DB.query(
         `
               UPDATE tasks
-              SET page_status = "To-Do"
-              SET deadline = ?
+              SET page_status = "To-Do",
+              deadline = ?
               WHERE page_id = ?
               `,
         [newDeadline, pageID]
