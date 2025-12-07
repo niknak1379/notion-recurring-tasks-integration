@@ -235,7 +235,7 @@ export async function getToBeRecurred() {
     let query = await DB.query(
       `
     SELECT page_id, recurrByDays FROM tasks
-    WHERE isRecurring = 1 AND page_status = "DONE"
+    WHERE isRecurring = 1
     `,
       []
     );
