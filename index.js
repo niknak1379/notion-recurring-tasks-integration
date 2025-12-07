@@ -14,6 +14,7 @@ import {
   syncDataBase,
   addToArchiveList,
   clearOutArchive,
+  getToArchiveList,
 } from "./Utils/utils.js";
 
 dotenv.config();
@@ -185,6 +186,8 @@ async function handleTaskUpdate(event) {
       // addToArchiveList(event.entity.id, event.timestamp);
     }
   }
+  if (event.type === "page.created") {
+  }
 }
 
 // -------------------------------------------------------------------
@@ -192,9 +195,10 @@ async function handleTaskUpdate(event) {
 app.listen(5000, "0.0.0.0", async () => {
   console.log("Server running on port 5000");
   try {
+    // await syncDataBase();
     await getToBeRecurred();
     await clearOutArchive();
-    // syncDataBase();
+    await getToArchiveList();
   } catch (e) {
     console.log(e);
   }

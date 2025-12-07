@@ -10,7 +10,6 @@ import { Client } from "@notionhq/client";
 import mysql from "mysql2";
 import dotenv from "dotenv";
 export let verificationToken = null;
-export let toBeArchived = [];
 export let toBeDueDateChanged = [];
 export let toBeRecurred = new Map();
 dotenv.config();
@@ -114,13 +113,16 @@ export async function syncDataBase() {
     const response = await notion.dataSources.query({
       data_source_id: process.env.DATASOURCE_ID,
     });
+    let deleteQuery = await DB.query(`
+        DELETE FROM tasks
+      `);
     console.log(response.results[0].properties);
     for (let task of response.results) {
       let query = await DB.query(
         `
-      INSERT INTO tasks (name, page_ID, deadline, page_status, last_changed)
-      Values(?, ?, ?, ?, ?)
-    `,
+          INSERT INTO tasks (name, page_ID, deadline, page_status, last_changed)
+          Values(?, ?, ?, ?, ?)
+        `,
         [
           task.properties["Task Name"].title[0].plain_text,
           task.id,
@@ -141,22 +143,27 @@ export async function syncDataBase() {
 // <--------------------------------Archive logic ------------->
 // <--------------------------------Archive logic ------------->
 
+// initializes the projects that need to be moved to the
+// archive from the database
 export async function getToArchiveList() {
   let query = await DB.query(
     `
-    SELECT * FROM tasks
+    SELECT page_id, last_changed FROM tasks
     WHERE page_status = "DONE"
     `,
     []
   );
   console.log("gettoArchiveList", query[0]);
-  toBeArchived = query[0][0];
+  for (let task of query[0]) {
+    scheduleArchive(task.page_id, task.last_changed);
+  }
   try {
   } catch (e) {
     console.log(e);
   }
 }
-// last modified ie status change
+// changes task status to Done and adds to the to be archived timeouts
+// will have to figure out when to call this on the event handler page
 export async function addToArchiveList(pageID, lastModified) {
   try {
     let status = await notion.pages.properties.retrieve({
@@ -180,20 +187,48 @@ export async function addToArchiveList(pageID, lastModified) {
     console.log(e);
   }
 }
+
+// schedules the timeout for being archived,
+// negative timeout is basically immediate execution so thats fine
 async function scheduleArchive(pageID, lastModified) {
-  let dateToBeArchived = addDays(lastModified, 7);
-  /* setTimeout(async () => {
-    const response = await notion.pages.update({
-      page_id: pageID,
-      properties: {
-        Status: {
-          equals: "Archived",
+  let lastModifiedDate = new Date(lastModified);
+  let dateToBeArchived = new Date(addDays(lastModifiedDate, 7));
+  let now = new Date();
+  console.log(dateToBeArchived, now, dateToBeArchived - now);
+  console.log("setting archive timeout for pageID: ", pageID);
+  setTimeout(async () => {
+    try {
+      const response = await notion.pages.update({
+        page_id: pageID,
+        properties: {
+          Status: {
+            status: { name: "Archived" },
+          },
         },
-      },
-    });
-    console.log("in timeout, archiving page ", pageID);
-  }, dateToBeArchived - lastModified); */
+      });
+      const archiveQuery = DB.query(
+        `
+        UPDATE tasks
+        SET page_status = "Archived"
+        WHERE page_id = ?`,
+        [pageID]
+      );
+      console.log(
+        "in timeout, successfully archived page:",
+        pageID,
+        archiveQuery[0],
+        response
+      );
+    } catch (e) {
+      console.log(e);
+    }
+  }, dateToBeArchived - now);
 }
+
+// <--------------------------------Clean up logic ------------->
+// <--------------------------------Clean up logic ------------->
+// <--------------------------------Clean up logic ------------->
+// <--------------------------------Clean up logic ------------->
 
 // query when the last clean up of the archive column was
 // and schedule the next weekly cleanup
@@ -205,9 +240,10 @@ export async function clearOutArchive() {
   `,
     []
   );
+  console.log(query[0]);
   let now = new Date();
-  let lastArchived = new Date(query[0][0]);
-  let nextArchive = addDays(lastArchived, 7);
+  let lastArchived = new Date(query[0][0].date);
+  let nextArchive = new Date(addDays(lastArchived, 7));
   setTimeout(async () => {
     try {
       let toBeDeleted = DB.query(
