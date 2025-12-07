@@ -13,6 +13,7 @@ import {
   getToBeRecurred,
   syncDataBase,
   addToArchiveList,
+  clearOutArchive,
 } from "./Utils/utils.js";
 
 dotenv.config();
@@ -192,6 +193,7 @@ app.listen(5000, "0.0.0.0", async () => {
   console.log("Server running on port 5000");
   try {
     await getToBeRecurred();
+    await clearOutArchive();
     // syncDataBase();
   } catch (e) {
     console.log(e);

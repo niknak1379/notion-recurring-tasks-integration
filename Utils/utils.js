@@ -182,7 +182,7 @@ export async function addToArchiveList(pageID, lastModified) {
 }
 async function scheduleArchive(pageID, lastModified) {
   let dateToBeArchived = addDays(lastModified, 7);
-  setTimeout(async () => {
+  /* setTimeout(async () => {
     const response = await notion.pages.update({
       page_id: pageID,
       properties: {
@@ -192,7 +192,48 @@ async function scheduleArchive(pageID, lastModified) {
       },
     });
     console.log("in timeout, archiving page ", pageID);
-  }, dateToBeArchived - lastModified);
+  }, dateToBeArchived - lastModified); */
+}
+
+// query when the last clean up of the archive column was
+// and schedule the next weekly cleanup
+export async function clearOutArchive() {
+  let query = await DB.query(
+    `
+      SELECT date FROM LastArchive
+      WHERE id = '1'
+  `,
+    []
+  );
+  let now = new Date();
+  let lastArchived = new Date(query[0][0]);
+  let nextArchive = addDays(lastArchived, 7);
+  setTimeout(async () => {
+    try {
+      let toBeDeleted = DB.query(
+        `
+      SELECT page_id FROM tasks
+      WHERE page_status = "Archived"`,
+        []
+      );
+      for (pageID of query[0][0]) {
+        const response = await notion.pages.update({
+          page_id: pageID,
+          archived: true, // or in_trash: true
+        });
+        let deleteQuery = await DB.query(
+          `
+              DELETE FROM tasks
+              WEHRE page_id = ?
+          `,
+          [pageID]
+        );
+        console.log("successfully archived page: ", pageID);
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  }, nextArchive - now);
 }
 // <--------------------------------DueDate Extension logic ------------->
 // <--------------------------------DueDate Extension logic ------------->
