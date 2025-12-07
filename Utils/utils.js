@@ -1,15 +1,13 @@
 // --- Utils ---------------------------------------------------------
 
-/**
- * Verify Notion webhook signature using HMAC-SHA256 and verification token.
- * Docs: https://developers.notion.com/reference/webhooks
- */
-
 import { createHmac, timingSafeEqual } from "crypto";
 import { Client } from "@notionhq/client";
 import mysql from "mysql2";
 import dotenv from "dotenv";
-import { add } from "date-fns";
+// ----------------------DB and notion Client Init ---------->
+// ----------------------DB and notion Client Init ---------->
+// ----------------------DB and notion Client Init ---------->
+// ----------------------DB and notion Client Init ---------->
 export let verificationToken = null;
 export let toBeDueDateChanged = [];
 export let toBeRecurred = new Map();
@@ -23,6 +21,17 @@ const DB = mysql
   })
   .promise();
 const notion = new Client({ auth: process.env.INTERNAL_INTEGRATION_SECRET });
+
+//  ----------------------Request Verification Logi ------------->
+//  ----------------------Request Verification Logi ------------->
+//  ----------------------Request Verification Logi ------------->
+//  ----------------------Request Verification Logi ------------->
+
+/**
+ * Verify Notion webhook signature using HMAC-SHA256 and verification token.
+ * Docs: https://developers.notion.com/reference/webhooks
+ */
+
 export async function isTrustedNotionRequest(req) {
   try {
     if (verificationToken == null) {
@@ -92,6 +101,32 @@ export async function updateValidationToken(token) {
   }
 }
 
+// --------------------------Helper Functions-------------------------//
+// --------------------------Helper Functions-------------------------//
+// --------------------------Helper Functions-------------------------//
+// --------------------------Helper Functions-------------------------//
+
+async function getStatus(pageID) {
+  let status = await notion.pages.properties.retrieve({
+    page_id: pageID,
+    property_id: "blD%7D", //this is hard coded for now but its the Status ID property
+  });
+  return status.status.name;
+}
+async function getDeadline(pageID) {
+  let date = await notion.pages.properties.retrieve({
+    page_id: pageID,
+    property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
+  });
+  return date.date.start;
+}
+async function getTitle(pageID) {
+  let title = await notion.pages.properties.retrieve({
+    page_id: pageID,
+    property_id: "title", //this is hard coded for now but its the Date ID property
+  });
+  return title.results[0].title.plain_text;
+}
 /**
  * Add days to an ISO date string
  */
@@ -442,26 +477,4 @@ export async function RecurTask(pageID, recurrByDays) {
   } catch (e) {
     console.log(e);
   }
-}
-
-async function getStatus(pageID) {
-  let status = await notion.pages.properties.retrieve({
-    page_id: pageID,
-    property_id: "blD%7D", //this is hard coded for now but its the Status ID property
-  });
-  return status.status.name;
-}
-async function getDeadline(pageID) {
-  let date = await notion.pages.properties.retrieve({
-    page_id: pageID,
-    property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
-  });
-  return date.date.start;
-}
-async function getTitle(pageID) {
-  let title = await notion.pages.properties.retrieve({
-    page_id: pageID,
-    property_id: "title", //this is hard coded for now but its the Date ID property
-  });
-  return title.results[0].title.plain_text;
 }
