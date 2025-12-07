@@ -9,6 +9,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { Client } from "@notionhq/client";
 import mysql from "mysql2";
 import dotenv from "dotenv";
+import { add } from "date-fns";
 export let verificationToken = null;
 export let toBeDueDateChanged = [];
 export let toBeRecurred = new Map();
@@ -175,7 +176,8 @@ export async function addToArchiveList(pageID, lastModified) {
       let query = await DB.query(
         `
       UPDATE tasks
-      SET last_changed = ?
+      SET last_changed = ?,
+      page_status = "Done"
       WHERE page_id = ?
     `,
         [lastModified, pageID]
@@ -252,7 +254,7 @@ export async function clearOutArchive() {
       WHERE page_status = "Archived"`,
         []
       );
-      for (pageID of query[0][0]) {
+      for (pageID of toBeDeleted[0][0]) {
         const response = await notion.pages.update({
           page_id: pageID,
           archived: true, // or in_trash: true
@@ -264,7 +266,12 @@ export async function clearOutArchive() {
           `,
           [pageID]
         );
-        console.log("successfully archived page: ", pageID);
+        console.log(
+          "successfully archived page: ",
+          pageID,
+          response,
+          deleteQuery
+        );
       }
     } catch (e) {
       console.log(e);
@@ -276,30 +283,108 @@ export async function clearOutArchive() {
 // <--------------------------------DueDate Extension logic ------------->
 // <--------------------------------DueDate Extension logic ------------->
 export async function getToDueDateChangeList() {
-  let query = await DB.query(
-    `
-    SELECT * FROM tasks
-    WHERE page_status IN ("In Progress", "To-Do")`
-  );
-  console.log("addToDueDateChangeList", query[0]);
   try {
+    let query = await DB.query(
+      `
+    SELECT page_id, deadline FROM tasks
+    WHERE page_status IN ("In Progress", "To-Do")
+    AND deadline IS NOT NULL`
+    );
+    console.log("addToDueDateChangeList", query[0]);
+    for (let task of query[0]) {
+      await scheduleDueDateChange(task.page_id, task.deadline);
+    }
   } catch (e) {
     console.log(e);
   }
 }
-export async function addToDueDateChangeList(pageID, dueDate, status) {
-  let query = await DB.query(
-    `
-      INSERT INTO tasks (page_id, deadline, page_status)
-      Values(?, ?, ?)
-    `,
-    [pageID, dueDate, status]
-  );
-  console.log("addtoArchiveList", query[0]);
+export async function addToDueDateChangeList(pageID, deadline) {
   try {
+    let query = await DB.query(`
+      INSERT INTO tasks
+      WHERE page
+        `);
   } catch (e) {
     console.log(e);
   }
+}
+export async function scheduleDueDateChange(pageID, dueDate) {
+  // check if status is not done first, if it is update database?
+  // if not done then extend database with notion SDK and then
+  // update database?
+  let deadline = new Date(dueDate);
+  let now = new Date();
+  console.log("scheduling due date extension for", pageID, deadline);
+  setTimeout(async () => {
+    try {
+      //get status and current deadline
+      let status = await notion.pages.properties.retrieve({
+        page_id: pageID,
+        property_id: "Status",
+      });
+      let retrievedDeadline = await notion.pages.properties.retrieve({
+        page_id: pageID,
+        property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
+      });
+      console.log(retrievedDeadline);
+      let retrievedDateObject = new Date(retrievedDeadline.date.start);
+      console.log(
+        "scheudle due date extension timeout:",
+        pageID,
+        status,
+        retrievedDateObject
+      );
+      // check if not done and the deadline is same as was scheduled
+      console.log(
+        "checking if the date objects are the same",
+        retrievedDateObject,
+        deadline,
+        retrievedDateObject == deadline
+      );
+      if (
+        status.status.name != "Done" &&
+        retrievedDateObject.toISOString() == deadline.toISOString()
+      ) {
+        let dateupdate = await notion.pages.update({
+          page_id: pageID,
+          properties: {
+            "Due Date": {
+              date: {
+                // push it back only by 2 for now, add custom functionality later?
+                start: addDays(retrievedDateObject, 2),
+              },
+            },
+          },
+        });
+        console.log(
+          "successfully extended deadline for page: ",
+          pageID,
+          dateupdate
+        );
+      }
+      // if the deadline has been extended or changed
+      else if (
+        status.status.name != "Done" &&
+        retrievedDateObject != deadline
+      ) {
+        let updateDeadline = await DB.query(
+          `
+            UPDATE tasks
+            SET deadline = ?
+            WHERE page_id = ?
+          `,
+          [retrievedDateObject, pageID]
+        );
+        console.log(
+          "deadline was changed, updating DB from scheduleDueDateChange",
+          updateDeadline[0]
+        );
+        scheduleDueDateChange(pageID, retrievedDateObject);
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  }, deadline - now);
 }
 
 // <--------------------------------recurring tasks logic ------------->

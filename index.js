@@ -6,8 +6,6 @@ import { Client } from "@notionhq/client";
 
 import {
   isTrustedNotionRequest,
-  updateValidationToken,
-  addDays,
   toBeRecurred,
   RecurTask,
   getToBeRecurred,
@@ -15,6 +13,7 @@ import {
   addToArchiveList,
   clearOutArchive,
   getToArchiveList,
+  getToDueDateChangeList,
 } from "./Utils/utils.js";
 
 dotenv.config();
@@ -170,6 +169,8 @@ async function handleTaskUpdate(event) {
     // check if it is a recurring task
     if (toBeRecurred.get(event.entity.id) != null) {
       try {
+        // checks if it is done or not and recurrs and changes the deadline
+        // if it is
         await RecurTask(event.entity.id, toBeRecurred.get(event.entity.id));
       } catch (e) {
         console.log(
@@ -182,11 +183,23 @@ async function handleTaskUpdate(event) {
     // if not recurring check if status has been updated to Done
     // and needs to be tracked to be archived in a 2 weeks.
     else if (event.data.updated_properties.includes("blD%7D")) {
-      // pretty sure i have to check if it is actually done or not
-      // addToArchiveList(event.entity.id, event.timestamp);
+      // addToArchiveList checks if the status has been changed to Done
+      // if so schedules it to be archived and updates the DB
+      await addToArchiveList(event.entity.id, event.timestamp);
     }
-  }
-  if (event.type === "page.created") {
+  } else if (event.type === "page.created") {
+    // first check if it is a done task and add it to the archive
+    // schedule if so.
+
+    // resync entire database if new page is added
+    // this is very stupid but it is what it is for now
+    await syncDataBase();
+    await getToBeRecurred();
+    await clearOutArchive();
+    await getToArchiveList();
+    await getToDueDateChangeList();
+    // maybe return false if its not going to be schedulued,
+    // then check if it has a deadline and add it to the deadline tracking portion
   }
 }
 
@@ -199,6 +212,7 @@ app.listen(5000, "0.0.0.0", async () => {
     await getToBeRecurred();
     await clearOutArchive();
     await getToArchiveList();
+    await getToDueDateChangeList();
   } catch (e) {
     console.log(e);
   }
