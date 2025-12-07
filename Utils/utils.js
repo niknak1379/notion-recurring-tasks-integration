@@ -106,22 +106,30 @@ export function addDays(isoString, days) {
 // <--------------------------------Data Base logic ------------->
 // <--------------------------------Data Base logic ------------->
 
+// syncs entire database for already existing tasks and for
+// initializing
 export async function syncDataBase() {
-  const response = await notion.dataSources.query({
-    data_source_id: dataSourceId,
-  });
-
-  console.log("addtoArchiveList", query[0]);
   try {
-    for (task of response.results) {
-      const page = notion.pages.retrieve({ page_id: task.id });
+    console.log("datasource id", process.env.DATASOURCE_ID);
+    const response = await notion.dataSources.query({
+      data_source_id: process.env.DATASOURCE_ID,
+    });
+    console.log(response.results[0].properties);
+    for (let task of response.results) {
       let query = await DB.query(
         `
-      INSERT INTO tasks (page_ID, dueDate, page_status)
-      Values(?, ?, ?)
+      INSERT INTO tasks (name, page_ID, deadline, page_status, last_changed)
+      Values(?, ?, ?, ?, ?)
     `,
-        [page.id, page.properties["Due Date"].date, page.properties.Status]
+        [
+          task.properties["Task Name"].title[0].plain_text,
+          task.id,
+          task.properties["Due Date"].date?.start,
+          task.properties.Status.status.name,
+          task.last_edited_time,
+        ]
       );
+      console.log(query[0]);
     }
   } catch (e) {
     console.log(e);

@@ -11,6 +11,7 @@ import {
   toBeRecurred,
   RecurTask,
   getToBeRecurred,
+  syncDataBase,
 } from "./Utils/utils.js";
 
 dotenv.config();
@@ -183,6 +184,7 @@ app.listen(5000, "0.0.0.0", async () => {
   console.log("Server running on port 5000");
   try {
     //await getToBeRecurred();
+    syncDataBase();
   } catch (e) {
     console.log(e);
   }

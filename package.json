@@ -7,7 +7,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "doppler run | npx nodemon run"
+    "test": "doppler run -- npx nodemon run"
   },
   "dependencies": {
     "@notionhq/client": "^5.4.0",
