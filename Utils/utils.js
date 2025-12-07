@@ -167,12 +167,9 @@ export async function getToArchiveList() {
 // will have to figure out when to call this on the event handler page
 export async function addToArchiveList(pageID, lastModified) {
   try {
-    let status = await notion.pages.properties.retrieve({
-      page_id: pageID,
-      property_id: "Status", //this is hard coded for now but its the Date ID property
-    });
+    let status = await getStatus(pageID);
     console.log(status);
-    if (status.status.name == "Done") {
+    if (status == "Done") {
       let query = await DB.query(
         `
       UPDATE tasks
@@ -298,6 +295,10 @@ export async function getToDueDateChangeList() {
     console.log(e);
   }
 }
+
+/////////////////////// arent using this currently///////////
+// figure it out after drawing out the flowchart and actually
+// planning it
 export async function addToDueDateChangeList(pageID, deadline) {
   try {
     let query = await DB.query(`
@@ -318,16 +319,10 @@ export async function scheduleDueDateChange(pageID, dueDate) {
   setTimeout(async () => {
     try {
       //get status and current deadline
-      let status = await notion.pages.properties.retrieve({
-        page_id: pageID,
-        property_id: "Status",
-      });
-      let retrievedDeadline = await notion.pages.properties.retrieve({
-        page_id: pageID,
-        property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
-      });
+      let status = getStatus(pageID);
+      let retrievedDeadline = await getDeadline(pageID);
       console.log(retrievedDeadline);
-      let retrievedDateObject = new Date(retrievedDeadline.date.start);
+      let retrievedDateObject = new Date(retrievedDeadline);
       console.log(
         "scheudle due date extension timeout:",
         pageID,
@@ -342,7 +337,7 @@ export async function scheduleDueDateChange(pageID, dueDate) {
         retrievedDateObject == deadline
       );
       if (
-        status.status.name != "Done" &&
+        status != "Done" &&
         retrievedDateObject.toISOString() == deadline.toISOString()
       ) {
         let dateupdate = await notion.pages.update({
@@ -363,10 +358,7 @@ export async function scheduleDueDateChange(pageID, dueDate) {
         );
       }
       // if the deadline has been extended or changed
-      else if (
-        status.status.name != "Done" &&
-        retrievedDateObject != deadline
-      ) {
+      else if (status != "Done" && retrievedDateObject != deadline) {
         let updateDeadline = await DB.query(
           `
             UPDATE tasks
@@ -401,7 +393,6 @@ export async function getToBeRecurred() {
     `,
       []
     );
-    //console.log("toBeRecurred", query[0]);
     for (let recurringTask of query[0]) {
       toBeRecurred.set(recurringTask.page_id, recurringTask.recurrByDays);
     }
@@ -415,28 +406,13 @@ export async function getToBeRecurred() {
 export async function RecurTask(pageID, recurrByDays) {
   try {
     // get the title here, instead of ID
-    let title = await notion.pages.properties.retrieve({
-      page_id: pageID,
-      property_id: "title", //this is hard coded for now but its the Date ID property
-    });
-    console.log(
-      "logging title of retrieved page:",
-      title.results[0].title.plain_text
-    );
-    let status = await notion.pages.properties.retrieve({
-      page_id: pageID,
-      property_id: "blD%7D", //this is hard coded for now but its the Status ID property
-    });
-    let date = await notion.pages.properties.retrieve({
-      page_id: pageID,
-      property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
-    });
-    let newDeadline = addDays(date.date.start, recurrByDays);
+    let title = await getTitle(pageID);
+    console.log("logging title of retrieved page:", title);
+    let status = await getStatus(pageID);
+    let date = await getDeadline(pageID);
+    let newDeadline = addDays(date, recurrByDays);
     console.log("status: ", status, " Due Date: ", date);
-    if (status.status.name == "Done") {
-      // since i dont want a billion tasks in the dashboard ill just
-      // change the status and push up the date instead of archving
-      // and then creating a new one.
+    if (status == "Done") {
       await notion.pages.update({
         page_id: pageID,
         properties: {
@@ -466,4 +442,26 @@ export async function RecurTask(pageID, recurrByDays) {
   } catch (e) {
     console.log(e);
   }
+}
+
+async function getStatus(pageID) {
+  let status = await notion.pages.properties.retrieve({
+    page_id: pageID,
+    property_id: "blD%7D", //this is hard coded for now but its the Status ID property
+  });
+  return status.status.name;
+}
+async function getDeadline(pageID) {
+  let date = await notion.pages.properties.retrieve({
+    page_id: pageID,
+    property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
+  });
+  return date.date.start;
+}
+async function getTitle(pageID) {
+  let title = await notion.pages.properties.retrieve({
+    page_id: pageID,
+    property_id: "title", //this is hard coded for now but its the Date ID property
+  });
+  return title.results[0].title.plain_text;
 }
