@@ -158,20 +158,42 @@ export async function getToArchiveList() {
 }
 // last modified ie status change
 export async function addToArchiveList(pageID, lastModified) {
-  let query = await DB.query(
-    `
-      INSERT INTO tasks (page_id, deadline, page_status)
-      Values(?, ?, "Done")
-    `,
-    [pageID, lastModified]
-  );
-  console.log("addtoArchiveList", query[0]);
   try {
+    let status = await notion.pages.properties.retrieve({
+      page_id: pageID,
+      property_id: "Status", //this is hard coded for now but its the Date ID property
+    });
+    console.log(status);
+    if (status.status.name == "Done") {
+      let query = await DB.query(
+        `
+      UPDATE tasks
+      SET last_changed = ?
+      WHERE page_id = ?
+    `,
+        [lastModified, pageID]
+      );
+      console.log("addtoArchiveList", query[0]);
+      scheduleArchive(pageID, lastModified);
+    }
   } catch (e) {
     console.log(e);
   }
 }
-
+async function scheduleArchive(pageID, lastModified) {
+  let dateToBeArchived = addDays(lastModified, 7);
+  setTimeout(async () => {
+    const response = await notion.pages.update({
+      page_id: pageID,
+      properties: {
+        Status: {
+          equals: "Archived",
+        },
+      },
+    });
+    console.log("in timeout, archiving page ", pageID);
+  }, dateToBeArchived - lastModified);
+}
 // <--------------------------------DueDate Extension logic ------------->
 // <--------------------------------DueDate Extension logic ------------->
 // <--------------------------------DueDate Extension logic ------------->
@@ -202,6 +224,12 @@ export async function addToDueDateChangeList(pageID, dueDate, status) {
     console.log(e);
   }
 }
+
+// <--------------------------------recurring tasks logic ------------->
+// <--------------------------------recurring tasks logic ------------->
+// <--------------------------------recurring tasks logic ------------->
+// <--------------------------------recurring tasks logic ------------->
+
 export async function getToBeRecurred() {
   try {
     let query = await DB.query(

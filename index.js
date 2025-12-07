@@ -12,6 +12,7 @@ import {
   RecurTask,
   getToBeRecurred,
   syncDataBase,
+  addToArchiveList,
 } from "./Utils/utils.js";
 
 dotenv.config();
@@ -164,6 +165,7 @@ app.post("/notion-webhook", async (req, res) => {
  */
 async function handleTaskUpdate(event) {
   if (event.type === "page.properties_updated") {
+    // check if it is a recurring task
     if (toBeRecurred.get(event.entity.id) != null) {
       try {
         await RecurTask(event.entity.id, toBeRecurred.get(event.entity.id));
@@ -175,6 +177,12 @@ async function handleTaskUpdate(event) {
         );
       }
     }
+    // if not recurring check if status has been updated to Done
+    // and needs to be tracked to be archived in a 2 weeks.
+    else if (event.data.updated_properties.includes("blD%7D")) {
+      // pretty sure i have to check if it is actually done or not
+      // addToArchiveList(event.entity.id, event.timestamp);
+    }
   }
 }
 
@@ -183,8 +191,8 @@ async function handleTaskUpdate(event) {
 app.listen(5000, "0.0.0.0", async () => {
   console.log("Server running on port 5000");
   try {
-    //await getToBeRecurred();
-    syncDataBase();
+    await getToBeRecurred();
+    // syncDataBase();
   } catch (e) {
     console.log(e);
   }
