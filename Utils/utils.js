@@ -127,6 +127,13 @@ async function getTitle(pageID) {
   });
   return title.results[0].title.plain_text;
 }
+export async function getRecursion(pageID) {
+  let recurrByDays = await notion.pages.properties.retrieve({
+    page_id: pageID,
+    property_id: "jSyh", //this is hard coded for now but its the recursion ID
+  });
+  return recurrByDays.number;
+}
 /**
  * Add days to an ISO date string
  */
@@ -154,10 +161,16 @@ export async function syncDataBase() {
       `);
     console.log(response.results[0].properties);
     for (let task of response.results) {
+      let isRecurring = 0;
+      let recurrByDays = 0;
+      if (task.properties.Recurring.number != null) {
+        recurrByDays = task.properties.Recurring.number;
+        isRecurring = 1;
+      }
       let query = await DB.query(
         `
-          INSERT INTO tasks (name, page_ID, deadline, page_status, last_changed)
-          Values(?, ?, ?, ?, ?)
+          INSERT INTO tasks (name, page_ID, deadline, page_status, last_changed, isRecurring, recurrByDays)
+          Values(?, ?, ?, ?, ?, ?, ?)
         `,
         [
           task.properties["Task Name"].title[0].plain_text,
@@ -165,6 +178,8 @@ export async function syncDataBase() {
           task.properties["Due Date"].date?.start,
           task.properties.Status.status.name,
           task.last_edited_time,
+          isRecurring,
+          recurrByDays,
         ]
       );
       console.log(query[0]);
@@ -228,7 +243,12 @@ async function scheduleArchive(pageID, lastModified) {
   let lastModifiedDate = new Date(lastModified);
   let dateToBeArchived = new Date(addDays(lastModifiedDate, 7));
   let now = new Date();
-  console.log(dateToBeArchived, now, dateToBeArchived - now);
+  console.log(
+    "date to be archived, now, difference",
+    dateToBeArchived,
+    now,
+    dateToBeArchived - now
+  );
   console.log("setting archive timeout for pageID: ", pageID);
   setTimeout(async () => {
     try {
@@ -274,7 +294,7 @@ export async function clearOutArchive() {
   `,
     []
   );
-  console.log(query[0]);
+  console.log("Last archive date", query[0]);
   let now = new Date();
   let lastArchived = new Date(query[0][0].date);
   let nextArchive = new Date(addDays(lastArchived, 7));
@@ -334,12 +354,18 @@ export async function getToDueDateChangeList() {
 /////////////////////// arent using this currently///////////
 // figure it out after drawing out the flowchart and actually
 // planning it
-export async function addToDueDateChangeList(pageID, deadline) {
+export async function addToDueDateChangeList(pageID) {
   try {
-    let query = await DB.query(`
-      INSERT INTO tasks
-      WHERE page
-        `);
+    let deadline = await getDeadline(pageID);
+    let query = await DB.query(
+      `
+      UPDATE tasks
+      SET deadline = ?
+      WHERE page = ?
+        `,
+      [deadline, pageID]
+    );
+    console.log("updating task with new deadline", pageID, deadline);
   } catch (e) {
     console.log(e);
   }
@@ -437,7 +463,8 @@ export async function getToBeRecurred() {
   }
 }
 
-// low level give it pageID, will find the status
+// low level give it pageID, will find the status and
+// change it back to to-do with a new deadline
 export async function RecurTask(pageID, recurrByDays) {
   try {
     // get the title here, instead of ID
@@ -473,6 +500,54 @@ export async function RecurTask(pageID, recurrByDays) {
       console.log("event successfully altered");
     } else {
       console.log("correct page, conditions for change not met");
+    }
+  } catch (e) {
+    console.log(e);
+  }
+}
+
+export async function handleRecursionChange(pageID) {
+  let query;
+  try {
+    let recurrByDays = await getRecursion(pageID);
+
+    //add to recursion
+    if (recurrByDays != null) {
+      query = await DB.query(
+        `
+          UPDATE tasks
+          SET isRecurring = 1, recurrByDays = ?
+          WHERE page_id = ?
+        `,
+        [recurrByDays, pageID]
+      );
+      toBeRecurred.set(pageID, recurrByDays);
+      console.log(
+        "successfully changed recursion for page",
+        pageID,
+        toBeRecurred,
+        query[0]
+      );
+    }
+    // if no recursion set up, delete from recursion list
+    else {
+      if (toBeRecurred.get(pageID) != null) {
+        query = await DB.query(
+          `
+          UPDATE tasks
+          SET isRecurring = 0, recurrByDays = 0
+          WHERE page_id = ?
+        `,
+          [pageID]
+        );
+        toBeRecurred.delete(pageID);
+        console.log(
+          "successfully deleted recursion for page",
+          pageID,
+          toBeRecurred,
+          query[0]
+        );
+      }
     }
   } catch (e) {
     console.log(e);

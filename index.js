@@ -14,6 +14,7 @@ import {
   clearOutArchive,
   getToArchiveList,
   getToDueDateChangeList,
+  addToDueDateChangeList,
 } from "./Utils/utils.js";
 
 dotenv.config();
@@ -167,39 +168,32 @@ app.post("/notion-webhook", async (req, res) => {
 async function handleTaskUpdate(event) {
   if (event.type === "page.properties_updated") {
     // check if it is a recurring task
-    if (toBeRecurred.get(event.entity.id) != null) {
-      try {
-        // checks if it is done or not and recurrs and changes the deadline
-        // if it is
-        await RecurTask(event.entity.id, toBeRecurred.get(event.entity.id));
-      } catch (e) {
-        console.log(
-          "Error in Recurr Task for pageID:",
-          `${event.entity.id} \n`,
-          e
-        );
-      }
-    }
-    // if not recurring check if status has been updated to Done
-    // and needs to be tracked to be archived in a 2 weeks.
-    else if (event.data.updated_properties.includes("blD%7D")) {
-      // addToArchiveList checks if the status has been changed to Done
-      // if so schedules it to be archived and updates the DB
-      await addToArchiveList(event.entity.id, event.timestamp);
+    switch (true) {
+      case event.data.updated_properties.includes("G%5Db%3B"): //due date
+        await addToDueDateChangeList(event.entity.id);
+        break;
+      case event.data.updated_properties("blD%7D"): //status
+        if (toBeRecurred.get(event.entity.id) != null) {
+          try {
+            // checks if it is done or not and recurrs and changes the deadline
+            // if it is
+            await RecurTask(event.entity.id, toBeRecurred.get(event.entity.id));
+          } catch (e) {
+            console.log(
+              "Error in Recurr Task for pageID:",
+              `${event.entity.id} \n`,
+              e
+            );
+          }
+        } else {
+          await addToArchiveList(event.entity.id, event.timestamp);
+        }
+        break;
+      case event.data.updated_properties("jSyh"): //recurring
+        await handleRecursionChange(pageID);
     }
   } else if (event.type === "page.created") {
-    // first check if it is a done task and add it to the archive
-    // schedule if so.
-
-    // resync entire database if new page is added
-    // this is very stupid but it is what it is for now
-    await syncDataBase();
-    await getToBeRecurred();
-    await clearOutArchive();
-    await getToArchiveList();
-    await getToDueDateChangeList();
-    // maybe return false if its not going to be schedulued,
-    // then check if it has a deadline and add it to the deadline tracking portion
+    await addToDB(event.entity.id);
   }
 }
 
