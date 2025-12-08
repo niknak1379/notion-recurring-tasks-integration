@@ -358,6 +358,13 @@ export async function clearOutArchive() {
           deleteQuery
         );
       }
+      let updateArchiveDate = DB.query(
+        `
+        UPDATE LastArchive
+        SET date = ?
+        WHERE id = '1'`,
+        [nextArchive]
+      );
     } catch (e) {
       console.log(e);
     }
