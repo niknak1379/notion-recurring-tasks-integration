@@ -189,6 +189,39 @@ export async function syncDataBase() {
   }
 }
 
+export async function addToDB(pageID, creationTime) {
+  try {
+    let isRecurring = 0;
+    let recurrByDays = getRecursion(pageID);
+    if (recurrByDays != null) {
+      isRecurring = 1;
+    }
+    let status = await getStatus(pageID);
+    let deadline = await getDeadline(pageID);
+    let title = await getTitle(pageID);
+    let query = await DB.query(
+      `
+          INSERT INTO tasks (name, page_ID, deadline, page_status, last_changed, isRecurring, recurrByDays)
+          Values(?, ?, ?, ?, ?, ?, ?)
+        `,
+      [title, pageID, deadline, status, creationTime, isRecurring, recurrByDays]
+    );
+    console.log("successfully added new task to DB", query[0]);
+    if (isRecurring) {
+      await handleRecursionChange(pageID);
+    }
+
+    if (deadline != null) {
+      await addToDueDateChangeList(pageID);
+    }
+    if (status == "Done") {
+      addToArchiveList(pageID);
+    }
+  } catch (e) {
+    console.log(e0);
+  }
+}
+
 // <--------------------------------Archive logic ------------->
 // <--------------------------------Archive logic ------------->
 // <--------------------------------Archive logic ------------->
@@ -365,6 +398,7 @@ export async function addToDueDateChangeList(pageID) {
         `,
       [deadline, pageID]
     );
+    await scheduleDueDateChange(pageID, deadline);
     console.log("updating task with new deadline", pageID, deadline);
   } catch (e) {
     console.log(e);

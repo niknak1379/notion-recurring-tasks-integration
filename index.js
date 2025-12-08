@@ -191,9 +191,10 @@ async function handleTaskUpdate(event) {
         break;
       case event.data.updated_properties("jSyh"): //recurring
         await handleRecursionChange(pageID);
+        break;
     }
   } else if (event.type === "page.created") {
-    await addToDB(event.entity.id);
+    await addToDB(event.entity.id, event.timestamp);
   }
 }
 
