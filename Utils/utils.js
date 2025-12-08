@@ -405,7 +405,7 @@ export async function addToDueDateChangeList(pageID) {
         `,
       [deadline, pageID]
     );
-    await scheduleDueDateChange(pageID, deadline);
+    if (deadline != null) await scheduleDueDateChange(pageID, deadline);
     console.log("updating task with new deadline", pageID, deadline);
   } catch (e) {
     console.log(e);
@@ -538,7 +538,7 @@ export async function RecurTask(pageID, recurrByDays) {
               `,
         [newDeadline, pageID]
       );
-      console.log("event successfully altered");
+      console.log("event successfully altered", query);
     } else {
       console.log("correct page, conditions for change not met");
     }
