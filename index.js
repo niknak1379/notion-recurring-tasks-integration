@@ -100,7 +100,7 @@ app.post("/notion-webhook", async (req, res) => {
         eventType === "page.properties_updated" ||
         eventType === "page.created"
       ) {
-        await handleTaskUpdate(body);
+        handleTaskUpdate(body);
         res.sendStatus(200);
       } else {
         console.log(
