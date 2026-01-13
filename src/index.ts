@@ -6,16 +6,16 @@ import { Client } from "@notionhq/client";
 // import { addDays, addHours, parseISO } from "date-fns";
 
 import {
-	isTrustedNotionRequest,
-	toBeRecurred,
-	RecurTask,
-	getToBeRecurred,
-	syncDataBase,
-	addToArchiveList,
-	clearOutArchive,
-	getToArchiveList,
-	getToDueDateChangeList,
-	addToDueDateChangeList,
+  isTrustedNotionRequest,
+  toBeRecurred,
+  RecurTask,
+  getToBeRecurred,
+  syncDataBase,
+  addToArchiveList,
+  clearOutArchive,
+  getToArchiveList,
+  getToDueDateChangeList,
+  addToDueDateChangeList,
 } from "./Utils/utils.js";
 
 dotenv.config();
@@ -24,27 +24,27 @@ const app = express();
 
 // needed for token verification
 declare global {
-	namespace Express {
-		interface Request {
-			rawBody?: string;
-		}
-	}
+  namespace Express {
+    interface Request {
+      rawBody?: string;
+    }
+  }
 }
 
 const rawBodySaver = (
-	req: Request,
-	buf: Buffer,
-	encoding: BufferEncoding
+  req: Request,
+  buf: Buffer,
+  encoding: BufferEncoding
 ): void => {
-	if (buf && buf.length) {
-		req.rawBody = buf.toString(encoding || "utf8");
-	}
+  if (buf && buf.length) {
+    req.rawBody = buf.toString(encoding || "utf8");
+  }
 };
 
 app.use(
-	express.json({
-		verify: rawBodySaver,
-	})
+  express.json({
+    verify: rawBodySaver,
+  })
 );
 
 /* app.use((req, res, next) => {
@@ -58,11 +58,11 @@ const notion = new Client({ auth: process.env.INTERNAL_INTEGRATION_SECRET });
 // ROUTES --------------------------------------------------------
 
 app.get("/", (req, res) => {
-	return res.send("Server is alive 🚀");
+  return res.send("Server is alive 🚀");
 });
 // Health check
 app.get("/health", (req, res) => {
-	return res.send("healthy");
+  return res.send("healthy");
 });
 // https://developers.notion.com/reference/webhooks-events-delivery
 // https://developers.notion.com/reference/query-a-data-source
@@ -93,47 +93,47 @@ app.get("/health", (req, res) => {
     }
   */
 app.post("/notion-webhook", async (req, res) => {
-	try {
-		const body = req.body;
-		// console.log("logging webhook full request", req);
-		console.log("Incoming Notion Event from Web-hook:\n", req.body, "\n");
+  try {
+    const body = req.body;
+    // console.log("logging webhook full request", req);
+    console.log("Incoming Notion Event from Web-hook:\n", req.body, "\n");
 
-		// handles subsequent verification requests
-		if (!isTrustedNotionRequest(req)) {
-			console.log("unable to verify, wrong validation token");
-			return res.sendStatus(200);
-		}
-		console.log("verified notion signature, proceeding");
+    // handles subsequent verification requests
+    if (!isTrustedNotionRequest(req)) {
+      console.log("unable to verify, wrong validation token");
+      return res.sendStatus(200);
+    }
+    console.log("verified notion signature, proceeding");
 
-		// log event type
-		if (body != null && "type" in body) {
-			const eventType = body.type;
-			console.log(`Received Notion event: ${eventType}`);
+    // log event type
+    if (body != null && "type" in body) {
+      const eventType = body.type;
+      console.log(`Received Notion event: ${eventType}`);
 
-			if (
-				eventType === "page.properties_updated" ||
-				eventType === "page.created"
-			) {
-				handleTaskUpdate(body);
-				res.sendStatus(200);
-			} else {
-				console.log(
-					"Ignoring event type, end of processing: ",
-					eventType,
-					"\n"
-				);
-				res.sendStatus(200);
-			}
-		} else {
-			console.log("no request body found, still returning 200");
-			return res.sendStatus(200);
-		}
-	} catch (err) {
-		console.error("Error handling webhook:", err);
-		if (!res.headersSent()) {
-			return res.sendStatus(200);
-		}
-	}
+      if (
+        eventType === "page.properties_updated" ||
+        eventType === "page.created"
+      ) {
+        handleTaskUpdate(body);
+        res.sendStatus(200);
+      } else {
+        console.log(
+          "Ignoring event type, end of processing: ",
+          eventType,
+          "\n"
+        );
+        res.sendStatus(200);
+      }
+    } else {
+      console.log("no request body found, still returning 200");
+      return res.sendStatus(200);
+    }
+  } catch (err) {
+    console.error("Error handling webhook:", err);
+    if (!res.headersSent()) {
+      return res.sendStatus(200);
+    }
+  }
 });
 
 // --- Event handler logic -------------------------------------------
@@ -180,49 +180,49 @@ app.post("/notion-webhook", async (req, res) => {
             
  */
 async function handleTaskUpdate(event) {
-	if (event.type === "page.properties_updated") {
-		// check if it is a recurring task
-		switch (true) {
-			case event.data.updated_properties.includes("G%5Db%3B"): //due date
-				await addToDueDateChangeList(event.entity.id);
-				break;
-			case event.data.updated_properties("blD%7D"): //status
-				if (toBeRecurred.get(event.entity.id) != null) {
-					try {
-						// checks if it is done or not and recurrs and changes the deadline
-						// if it is
-						await RecurTask(event.entity.id, toBeRecurred.get(event.entity.id));
-					} catch (e) {
-						console.log(
-							"Error in Recurr Task for pageID:",
-							`${event.entity.id} \n`,
-							e
-						);
-					}
-				} else {
-					await addToArchiveList(event.entity.id, event.timestamp);
-				}
-				break;
-			case event.data.updated_properties("jSyh"): //recurring
-				await handleRecursionChange(pageID);
-				break;
-		}
-	} else if (event.type === "page.created") {
-		await addToDB(event.entity.id, event.timestamp);
-	}
+  if (event.type === "page.properties_updated") {
+    // check if it is a recurring task
+    switch (true) {
+      case event.data.updated_properties.includes("G%5Db%3B"): //due date
+        await addToDueDateChangeList(event.entity.id);
+        break;
+      case event.data.updated_properties("blD%7D"): //status
+        if (toBeRecurred.get(event.entity.id) != null) {
+          try {
+            // checks if it is done or not and recurrs and changes the deadline
+            // if it is
+            await RecurTask(event.entity.id, toBeRecurred.get(event.entity.id));
+          } catch (e) {
+            console.log(
+              "Error in Recurr Task for pageID:",
+              `${event.entity.id} \n`,
+              e
+            );
+          }
+        } else {
+          await addToArchiveList(event.entity.id, event.timestamp);
+        }
+        break;
+      case event.data.updated_properties("jSyh"): //recurring
+        await handleRecursionChange(pageID);
+        break;
+    }
+  } else if (event.type === "page.created") {
+    await addToDB(event.entity.id, event.timestamp);
+  }
 }
 
 // -------------------------------------------------------------------
 
 app.listen(5000, "0.0.0.0", async () => {
-	console.log("Server running on port 5000");
-	try {
-		// await syncDataBase();
-		await getToBeRecurred();
-		await clearOutArchive();
-		await getToArchiveList();
-		await getToDueDateChangeList();
-	} catch (e) {
-		console.log(e);
-	}
+  console.log("Server running on port 5000");
+  try {
+    await syncDataBase();
+    await getToBeRecurred();
+    await clearOutArchive();
+    await getToArchiveList();
+    await getToDueDateChangeList();
+  } catch (e) {
+    console.log(e);
+  }
 });

@@ -1,7 +1,11 @@
 // --- Utils ---------------------------------------------------------
 import type { Request } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
-import { Client, type PropertyItemObjectResponse } from "@notionhq/client";
+import {
+	Client,
+	type PageObjectResponse,
+	type PropertyItemObjectResponse,
+} from "@notionhq/client";
 import mysql, { type ResultSetHeader, type RowDataPacket } from "mysql2";
 import dotenv from "dotenv";
 
@@ -41,6 +45,7 @@ const MYSQL_PASSWORD = process.env["MYSQL_PASSWORD"];
 const MYSQL_DATABASE = process.env["MYSQL_DATABASE"];
 const INTERNAL_INTEGRATION_SECRET = process.env["INTERNAL_INTEGRATION_SECRET"];
 const REFRESH_TOKEN_ID = process.env["REFRESH_TOKEN_ID"];
+const DATASOURCE_ID = process.env["DATASOURCE_ID"];
 if (
 	!refreshTokenId ||
 	!MYSQL_HOST ||
@@ -48,7 +53,8 @@ if (
 	!MYSQL_PASSWORD ||
 	!MYSQL_DATABASE ||
 	!INTERNAL_INTEGRATION_SECRET ||
-	!REFRESH_TOKEN_ID
+	!REFRESH_TOKEN_ID ||
+	!DATASOURCE_ID
 ) {
 	throw new Error("REFRESH_TOKEN_ID environment variable is missing");
 }
@@ -229,44 +235,98 @@ export function addDays(isoString: string, days: number): string {
 // initializing
 export async function syncDataBase() {
 	try {
-		console.log("datasource id", process.env.DATASOURCE_ID);
+		// Delete entire tasks for resync
+		await DB.query(`DELETE FROM tasks`);
+
 		const response = await notion.dataSources.query({
-			data_source_id: process.env.DATASOURCE_ID,
+			data_source_id: DATASOURCE_ID as string,
 		});
-		let deleteQuery = await DB.query(`
-        DELETE FROM tasks
-      `);
-		console.log(response.results[0].properties);
-		for (let task of response.results) {
+
+		const pages = response.results.filter(
+			(item): item is PageObjectResponse => item.object === "page"
+		);
+
+		for (const task of pages) {
 			let isRecurring = 0;
 			let recurrByDays = 0;
-			if (task.properties.Recurring.number != null) {
-				recurrByDays = task.properties.Recurring.number;
+
+			// Get Recurring property
+			const recurring = task.properties["Recurring"];
+			if (
+				recurring &&
+				"type" in recurring &&
+				recurring.type === "number" &&
+				"number" in recurring &&
+				recurring.number != null
+			) {
+				recurrByDays = recurring.number;
 				isRecurring = 1;
 			}
-			let query = await DB.query(
+
+			// Get Task Name
+			const taskName = task.properties["Task Name"];
+			let name = "";
+			if (
+				taskName &&
+				"type" in taskName &&
+				taskName.type === "title" &&
+				"title" in taskName &&
+				Array.isArray(taskName.title) &&
+				taskName.title.length > 0
+			) {
+				name = taskName.title[0]?.plain_text as string;
+			}
+
+			// Get Due Date
+			const dueDate = task.properties["Due Date"];
+			let deadline: Date | null = null;
+			if (
+				dueDate &&
+				"type" in dueDate &&
+				dueDate.type === "date" &&
+				"date" in dueDate
+			) {
+				deadline = new Date(dueDate.date?.start as string) || null;
+			}
+
+			// Get Status
+			const status = task.properties["Status"];
+			let statusName = "";
+			if (
+				status &&
+				"type" in status &&
+				status.type === "status" &&
+				"status" in status &&
+				status.status?.name
+			) {
+				statusName = status.status.name;
+			}
+
+			// Insert into database
+			const result = await DB.query(
 				`
           INSERT INTO tasks (name, page_ID, deadline, page_status, last_changed, isRecurring, recurrByDays)
-          Values(?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
 				[
-					task.properties["Task Name"].title[0].plain_text,
+					name,
 					task.id,
-					task.properties["Due Date"].date?.start,
-					task.properties.Status.status.name,
+					deadline,
+					statusName,
 					task.last_edited_time,
 					isRecurring,
 					recurrByDays,
 				]
 			);
-			console.log(query[0]);
+
+			console.log("Inserted task:", result[0]);
 		}
 	} catch (e) {
-		console.log(e);
+		console.error("Error syncing database:", e);
 	}
 }
 
-export async function addToDB(pageID, creationTime) {
+export async function addToDB(pageID: string, creationTime: Date) {
 	try {
 		let isRecurring = 0;
 		let recurrByDays = getRecursion(pageID);
@@ -292,10 +352,10 @@ export async function addToDB(pageID, creationTime) {
 			await addToDueDateChangeList(pageID);
 		}
 		if (status == "Done") {
-			addToArchiveList(pageID);
+			addToArchiveList(pageID, creationTime);
 		}
 	} catch (e) {
-		console.log(e0);
+		console.log(e);
 	}
 }
 
@@ -307,25 +367,25 @@ export async function addToDB(pageID, creationTime) {
 // initializes the projects that need to be moved to the
 // archive from the database
 export async function getToArchiveList() {
-	let query = await DB.query(
-		`
+	try {
+		let [query] = await DB.query<RowDataPacket[]>(
+			`
     SELECT page_id, last_changed FROM tasks
     WHERE page_status = "DONE"
     `,
-		[]
-	);
-	console.log("gettoArchiveList", query[0]);
-	for (let task of query[0]) {
-		scheduleArchive(task.page_id, task.last_changed);
-	}
-	try {
+			[]
+		);
+		console.log("gettoArchiveList", query);
+		for (let task of query) {
+			scheduleArchive(task["page_id"], task["last_changed"]);
+		}
 	} catch (e) {
 		console.log(e);
 	}
 }
 // changes task status to Done and adds to the to be archived timeouts
 // will have to figure out when to call this on the event handler page
-export async function addToArchiveList(pageID, lastModified) {
+export async function addToArchiveList(pageID: string, lastModified: Date) {
 	try {
 		let status = await getStatus(pageID);
 		console.log(status);
@@ -349,15 +409,15 @@ export async function addToArchiveList(pageID, lastModified) {
 
 // schedules the timeout for being archived,
 // negative timeout is basically immediate execution so thats fine
-async function scheduleArchive(pageID, lastModified) {
+async function scheduleArchive(pageID: string, lastModified: Date) {
 	let lastModifiedDate = new Date(lastModified);
-	let dateToBeArchived = new Date(addDays(lastModifiedDate, 7));
+	let dateToBeArchived = new Date(addDays(lastModifiedDate.toISOString(), 7));
 	let now = new Date();
 	console.log(
 		"date to be archived, now, difference",
 		dateToBeArchived,
 		now,
-		dateToBeArchived - now
+		dateToBeArchived.getTime() - now.getTime()
 	);
 	console.log("setting archive timeout for pageID: ", pageID);
 	setTimeout(async () => {
@@ -370,7 +430,7 @@ async function scheduleArchive(pageID, lastModified) {
 					},
 				},
 			});
-			const archiveQuery = DB.query(
+			const archiveQuery = await DB.query(
 				`
         UPDATE tasks
         SET page_status = "Archived"
@@ -386,7 +446,7 @@ async function scheduleArchive(pageID, lastModified) {
 		} catch (e) {
 			console.log(e);
 		}
-	}, dateToBeArchived - now);
+	}, dateToBeArchived.getTime() - now.getTime());
 }
 
 // <--------------------------------Clean up logic ------------->
