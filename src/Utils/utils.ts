@@ -1,9 +1,29 @@
 // --- Utils ---------------------------------------------------------
 import type { Request } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
-import { Client } from "@notionhq/client";
-import mysql, { type RowDataPacket } from "mysql2";
+import { Client, type PropertyItemObjectResponse } from "@notionhq/client";
+import mysql, { type ResultSetHeader, type RowDataPacket } from "mysql2";
 import dotenv from "dotenv";
+
+// ----------------------Types and Interfaces --------------->
+// ----------------------Types and interfaces --------------->
+interface notoinPageProperty {
+	status: {
+		name: string;
+	};
+	date: {
+		start: string;
+	};
+	number: number; //recursion days
+	results: [
+		{
+			title: {
+				plain_text: string;
+			};
+		}
+	];
+}
+
 // ----------------------DB and notion Client Init ---------->
 // ----------------------DB and notion Client Init ---------->
 // ----------------------DB and notion Client Init ---------->
@@ -20,14 +40,15 @@ const MYSQL_USER = process.env["MYSQL_USER"];
 const MYSQL_PASSWORD = process.env["MYSQL_PASSWORD"];
 const MYSQL_DATABASE = process.env["MYSQL_DATABASE"];
 const INTERNAL_INTEGRATION_SECRET = process.env["INTERNAL_INTEGRATION_SECRET"];
-
+const REFRESH_TOKEN_ID = process.env["REFRESH_TOKEN_ID"];
 if (
 	!refreshTokenId ||
 	!MYSQL_HOST ||
 	!MYSQL_USER ||
 	!MYSQL_PASSWORD ||
 	!MYSQL_DATABASE ||
-	!INTERNAL_INTEGRATION_SECRET
+	!INTERNAL_INTEGRATION_SECRET ||
+	!REFRESH_TOKEN_ID
 ) {
 	throw new Error("REFRESH_TOKEN_ID environment variable is missing");
 }
@@ -113,11 +134,11 @@ export async function getValidationToken(req: Request): Promise<string> {
 				throw new Error("No valid token or header");
 			}
 
-			const headerStr = Array.isArray(notion_header)
+			const token = Array.isArray(notion_header)
 				? notion_header[0]
 				: notion_header;
-			await updateValidationToken(headerStr);
-			return headerStr as string;
+			updateValidationToken(token as string);
+			return token as string;
 		}
 
 		return tokenRow.refreshToken;
@@ -129,15 +150,18 @@ export async function getValidationToken(req: Request): Promise<string> {
 
 //idk what this returns for now i have to make a new connection
 // and test it out
-export async function updateValidationToken(token) {
+export async function updateValidationToken(token: string): Promise<void> {
 	try {
-		let query = await DB.query(
+		let [updated] = await DB.query<ResultSetHeader>(
 			`
         UPDATE Tokens
         SET refreshToken = ?
         WHERE id = ?`,
-			[token, process.env.REFRESH_TOKEN_ID]
+			[token, REFRESH_TOKEN_ID]
 		);
+		if (updated.affectedRows != 1) {
+			throw new Error("Could not update refresh token");
+		}
 		// console.log("update token results", query, query[0]);
 	} catch (e) {
 		console.warn(e);
@@ -149,38 +173,48 @@ export async function updateValidationToken(token) {
 // --------------------------Helper Functions-------------------------//
 // --------------------------Helper Functions-------------------------//
 
-async function getStatus(pageID) {
-	let status = await notion.pages.properties.retrieve({
-		page_id: pageID,
-		property_id: "blD%7D", //this is hard coded for now but its the Status ID property
-	});
-	return status.status.name;
+async function getStatus(pageID: string): Promise<string> {
+	try {
+		const status = (await notion.pages.properties.retrieve({
+			page_id: pageID,
+			property_id: "blD%7D",
+		})) as unknown as notoinPageProperty;
+
+		if (!status.status || !status.status.name) {
+			throw new Error("Status property not found or has no name");
+		}
+
+		return status.status.name;
+	} catch (e) {
+		console.error("Error retrieving page status:", e);
+		throw e;
+	}
 }
-async function getDeadline(pageID) {
-	let date = await notion.pages.properties.retrieve({
+async function getDeadline(pageID: string): Promise<string> {
+	let date = (await notion.pages.properties.retrieve({
 		page_id: pageID,
 		property_id: "G%5Db%3B", //this is hard coded for now but its the Date ID property
-	});
+	})) as unknown as notoinPageProperty;
 	return date.date.start;
 }
-async function getTitle(pageID) {
-	let title = await notion.pages.properties.retrieve({
+async function getTitle(pageID: string) {
+	let title = (await notion.pages.properties.retrieve({
 		page_id: pageID,
 		property_id: "title", //this is hard coded for now but its the Date ID property
-	});
+	})) as unknown as notoinPageProperty;
 	return title.results[0].title.plain_text;
 }
-export async function getRecursion(pageID) {
-	let recurrByDays = await notion.pages.properties.retrieve({
+export async function getRecursion(pageID: string): Promise<number> {
+	let recurrByDays = (await notion.pages.properties.retrieve({
 		page_id: pageID,
 		property_id: "jSyh", //this is hard coded for now but its the recursion ID
-	});
+	})) as unknown as notoinPageProperty;
 	return recurrByDays.number;
 }
 /**
  * Add days to an ISO date string
  */
-export function addDays(isoString, days) {
+export function addDays(isoString: string, days: number): string {
 	const date = new Date(isoString);
 	date.setDate(date.getDate() + days);
 	return date.toISOString();
