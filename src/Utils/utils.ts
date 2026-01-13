@@ -1,5 +1,5 @@
 // --- Utils ---------------------------------------------------------
-import type { Request, Response } from "express";
+import type { Request } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
 import { Client } from "@notionhq/client";
 import mysql, { type RowDataPacket } from "mysql2";
@@ -8,7 +8,7 @@ import dotenv from "dotenv";
 // ----------------------DB and notion Client Init ---------->
 // ----------------------DB and notion Client Init ---------->
 // ----------------------DB and notion Client Init ---------->
-export let verificationToken = null;
+export let verificationToken = "";
 export let toBeDueDateChanged = [];
 export let toBeRecurred = new Map();
 dotenv.config();
@@ -54,7 +54,7 @@ const notion = new Client({ auth: INTERNAL_INTEGRATION_SECRET });
 
 export async function isTrustedNotionRequest(req: Request): Promise<boolean> {
 	try {
-		if (verificationToken == null) {
+		if (verificationToken == "") {
 			verificationToken = await getValidationToken(req);
 			console.log("token", verificationToken);
 		}
@@ -79,12 +79,15 @@ export async function isTrustedNotionRequest(req: Request): Promise<boolean> {
 
 export async function getValidationToken(req: Request): Promise<string> {
 	try {
-		const [rows] = await DB.query(
+		interface TokenRow extends RowDataPacket {
+			refreshToken: string;
+		}
+
+		const [rows] = await DB.query<TokenRow[]>(
 			`SELECT refreshToken FROM Tokens WHERE id = ?`,
 			[refreshTokenId]
 		);
 
-		// Check if rows exist
 		if (!rows || rows.length === 0) {
 			const { "x-notion-signature": notion_header } = req.headers;
 
@@ -96,10 +99,10 @@ export async function getValidationToken(req: Request): Promise<string> {
 			throw new Error("No token found and no header provided");
 		}
 
-		const tokenRow: RowDataPacket = rows[0];
+		const tokenRow = rows[0];
 
-		// Check if token is valid
 		if (
+			!tokenRow ||
 			!tokenRow.refreshToken ||
 			tokenRow.refreshToken === "NULL" ||
 			tokenRow.refreshToken === ""
@@ -114,7 +117,7 @@ export async function getValidationToken(req: Request): Promise<string> {
 				? notion_header[0]
 				: notion_header;
 			await updateValidationToken(headerStr);
-			return headerStr;
+			return headerStr as string;
 		}
 
 		return tokenRow.refreshToken;
