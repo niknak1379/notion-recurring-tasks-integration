@@ -31,7 +31,12 @@ interface notoinPageProperty {
 		}
 	];
 }
-
+interface page extends RowDataPacket {
+	page_id: string;
+	last_changed: string;
+	deadline: string;
+	recurrByDays: number;
+}
 // ----------------------DB and notion Client Init ---------->
 // ----------------------DB and notion Client Init ---------->
 // ----------------------DB and notion Client Init ---------->
@@ -330,7 +335,7 @@ export async function syncDataBase() {
 	}
 }
 
-export async function addToDB(pageID: string, creationTime: Date) {
+export async function addToDB(pageID: string, creationTime: string) {
 	try {
 		let isRecurring = 0;
 		let recurrByDays = getRecursion(pageID);
@@ -372,7 +377,7 @@ export async function addToDB(pageID: string, creationTime: Date) {
 // archive from the database
 export async function getToArchiveList() {
 	try {
-		let [query] = await DB.query<RowDataPacket[]>(
+		let [query] = await DB.query<page[]>(
 			`
     SELECT page_id, last_changed FROM tasks
     WHERE page_status = "DONE"
@@ -381,7 +386,7 @@ export async function getToArchiveList() {
 		);
 		console.log("gettoArchiveList", query);
 		for (let task of query) {
-			scheduleArchive(task["page_id"], task["last_changed"]);
+			scheduleArchive(task.page_id, task.last_changed);
 		}
 	} catch (e) {
 		console.log(e);
@@ -389,7 +394,7 @@ export async function getToArchiveList() {
 }
 // changes task status to Done and adds to the to be archived timeouts
 // will have to figure out when to call this on the event handler page
-export async function addToArchiveList(pageID: string, lastModified: Date) {
+export async function addToArchiveList(pageID: string, lastModified: string) {
 	try {
 		let status = await getStatus(pageID);
 		console.log(status);
@@ -413,7 +418,7 @@ export async function addToArchiveList(pageID: string, lastModified: Date) {
 
 // schedules the timeout for being archived,
 // negative timeout is basically immediate execution so thats fine
-async function scheduleArchive(pageID: string, lastModified: Date) {
+async function scheduleArchive(pageID: string, lastModified: string) {
 	let lastModifiedDate = new Date(lastModified);
 	let dateToBeArchived = new Date(addDays(lastModifiedDate.toISOString(), 7));
 	let now = new Date();
@@ -485,9 +490,6 @@ export async function clearOutArchive() {
 	let nextArchive = new Date(addDays(lastArchived.toISOString(), 7));
 	setTimeout(async () => {
 		try {
-			interface page extends RowDataPacket {
-				page_id: string;
-			}
 			let [toBeDeleted] = await DB.query<page[]>(
 				`
       SELECT page_id FROM tasks
@@ -534,14 +536,14 @@ export async function clearOutArchive() {
 // <--------------------------------DueDate Extension logic ------------->
 export async function getToDueDateChangeList() {
 	try {
-		let query = await DB.query(
+		let [query] = await DB.query<page[]>(
 			`
     SELECT page_id, deadline FROM tasks
     WHERE page_status IN ("In Progress", "To-Do")
     AND deadline IS NOT NULL`
 		);
 		console.log("addToDueDateChangeList", query[0]);
-		for (let task of query[0]) {
+		for (let task of query) {
 			await scheduleDueDateChange(task.page_id, task.deadline);
 		}
 	} catch (e) {
@@ -552,10 +554,10 @@ export async function getToDueDateChangeList() {
 /////////////////////// arent using this currently///////////
 // figure it out after drawing out the flowchart and actually
 // planning it
-export async function addToDueDateChangeList(pageID) {
+export async function addToDueDateChangeList(pageID: string) {
 	try {
 		let deadline = await getDeadline(pageID);
-		let query = await DB.query(
+		let [query] = await DB.query<ResultSetHeader>(
 			`
       UPDATE tasks
       SET deadline = ?
@@ -563,13 +565,16 @@ export async function addToDueDateChangeList(pageID) {
         `,
 			[deadline, pageID]
 		);
+		if (query.affectedRows != 1) {
+			throw new Error("could not update deadline in DB");
+		}
 		if (deadline != null) await scheduleDueDateChange(pageID, deadline);
 		console.log("updating task with new deadline", pageID, deadline);
 	} catch (e) {
 		console.log(e);
 	}
 }
-export async function scheduleDueDateChange(pageID, dueDate) {
+export async function scheduleDueDateChange(pageID: string, dueDate: string) {
 	// check if status is not done first, if it is update database?
 	// if not done then extend database with notion SDK and then
 	// update database?
@@ -579,7 +584,7 @@ export async function scheduleDueDateChange(pageID, dueDate) {
 	setTimeout(async () => {
 		try {
 			//get status and current deadline
-			let status = getStatus(pageID);
+			let status = await getStatus(pageID);
 			let retrievedDeadline = await getDeadline(pageID);
 			console.log(retrievedDeadline);
 			let retrievedDateObject = new Date(retrievedDeadline);
@@ -590,12 +595,6 @@ export async function scheduleDueDateChange(pageID, dueDate) {
 				retrievedDateObject
 			);
 			// check if not done and the deadline is same as was scheduled
-			console.log(
-				"checking if the date objects are the same",
-				retrievedDateObject,
-				deadline,
-				retrievedDateObject == deadline
-			);
 			if (
 				status != "Done" &&
 				retrievedDateObject.toISOString() == deadline.toISOString()
@@ -606,7 +605,7 @@ export async function scheduleDueDateChange(pageID, dueDate) {
 						"Due Date": {
 							date: {
 								// push it back only by 2 for now, add custom functionality later?
-								start: addDays(retrievedDateObject, 2),
+								start: addDays(retrievedDeadline, 2),
 							},
 						},
 					},
@@ -619,7 +618,7 @@ export async function scheduleDueDateChange(pageID, dueDate) {
 			}
 			// if the deadline has been extended or changed
 			else if (status != "Done" && retrievedDateObject != deadline) {
-				let updateDeadline = await DB.query(
+				let [updateDeadline] = await DB.query<ResultSetHeader>(
 					`
             UPDATE tasks
             SET deadline = ?
@@ -627,16 +626,18 @@ export async function scheduleDueDateChange(pageID, dueDate) {
           `,
 					[retrievedDateObject, pageID]
 				);
+				if (updateDeadline.affectedRows != 1) {
+					throw new Error("could not update new deadline in db");
+				}
 				console.log(
-					"deadline was changed, updating DB from scheduleDueDateChange",
-					updateDeadline[0]
+					"deadline was changed, updating DB from scheduleDueDateChange"
 				);
-				scheduleDueDateChange(pageID, retrievedDateObject);
+				scheduleDueDateChange(pageID, retrievedDeadline);
 			}
 		} catch (e) {
 			console.log(e);
 		}
-	}, deadline - now);
+	}, deadline.getTime() - now.getTime());
 }
 
 // <--------------------------------recurring tasks logic ------------->
@@ -646,14 +647,14 @@ export async function scheduleDueDateChange(pageID, dueDate) {
 
 export async function getToBeRecurred() {
 	try {
-		let query = await DB.query(
+		let [query] = await DB.query<page[]>(
 			`
     SELECT page_id, recurrByDays FROM tasks
     WHERE isRecurring = 1
     `,
 			[]
 		);
-		for (let recurringTask of query[0]) {
+		for (let recurringTask of query) {
 			toBeRecurred.set(recurringTask.page_id, recurringTask.recurrByDays);
 		}
 		console.log("toBeRecurred", toBeRecurred);
@@ -664,7 +665,7 @@ export async function getToBeRecurred() {
 
 // low level give it pageID, will find the status and
 // change it back to to-do with a new deadline
-export async function RecurTask(pageID, recurrByDays) {
+export async function RecurTask(pageID: string, recurrByDays: number) {
 	try {
 		// get the title here, instead of ID
 		let title = await getTitle(pageID);
@@ -705,14 +706,14 @@ export async function RecurTask(pageID, recurrByDays) {
 	}
 }
 
-export async function handleRecursionChange(pageID) {
+export async function handleRecursionChange(pageID: string) {
 	let query;
 	try {
 		let recurrByDays = await getRecursion(pageID);
 
 		//add to recursion
 		if (recurrByDays != null) {
-			query = await DB.query(
+			[query] = await DB.query<ResultSetHeader>(
 				`
           UPDATE tasks
           SET isRecurring = 1, recurrByDays = ?
@@ -725,13 +726,13 @@ export async function handleRecursionChange(pageID) {
 				"successfully changed recursion for page",
 				pageID,
 				toBeRecurred,
-				query[0]
+				query.affectedRows
 			);
 		}
 		// if no recursion set up, delete from recursion list
 		else {
 			if (toBeRecurred.get(pageID) != null) {
-				query = await DB.query(
+				[query] = await DB.query<ResultSetHeader>(
 					`
           UPDATE tasks
           SET isRecurring = 0, recurrByDays = 0
@@ -744,7 +745,7 @@ export async function handleRecursionChange(pageID) {
 					"successfully deleted recursion for page",
 					pageID,
 					toBeRecurred,
-					query[0]
+					query.affectedRows
 				);
 			}
 		}

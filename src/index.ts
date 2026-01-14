@@ -16,7 +16,7 @@ import {
 	getToArchiveList,
 	getToDueDateChangeList,
 	addToDueDateChangeList,
-} from "./Utils/utils.js";
+} from "./Utils/utils.ts";
 
 dotenv.config();
 
