@@ -6,7 +6,11 @@ import {
 	type PageObjectResponse,
 	type PropertyItemObjectResponse,
 } from "@notionhq/client";
-import mysql, { type ResultSetHeader, type RowDataPacket } from "mysql2";
+import mysql, {
+	type FieldPacket,
+	type ResultSetHeader,
+	type RowDataPacket,
+} from "mysql2";
 import dotenv from "dotenv";
 
 // ----------------------Types and Interfaces --------------->
@@ -457,28 +461,42 @@ async function scheduleArchive(pageID: string, lastModified: Date) {
 // query when the last clean up of the archive column was
 // and schedule the next weekly cleanup
 export async function clearOutArchive() {
-	let query = await DB.query(
+	interface ArchiveRes extends RowDataPacket {
+		date: string;
+	}
+	let [query] = await DB.query<ArchiveRes[]>(
 		`
       SELECT date FROM LastArchive
       WHERE id = '1'
   `,
 		[]
 	);
+
+	if (!query || query.length === 0) {
+		console.warn("No archive record found");
+		return;
+	}
 	console.log("Last archive date", query[0]);
+
+	const dateString = query[0]?.date;
+
 	let now = new Date();
-	let lastArchived = new Date(query[0][0].date);
-	let nextArchive = new Date(addDays(lastArchived, 7));
+	let lastArchived = new Date(dateString as string);
+	let nextArchive = new Date(addDays(lastArchived.toISOString(), 7));
 	setTimeout(async () => {
 		try {
-			let toBeDeleted = DB.query(
+			interface page extends RowDataPacket {
+				page_id: string;
+			}
+			let [toBeDeleted] = await DB.query<page[]>(
 				`
       SELECT page_id FROM tasks
       WHERE page_status = "Archived"`,
 				[]
 			);
-			for (pageID of toBeDeleted[0][0]) {
+			for (let p of toBeDeleted) {
 				const response = await notion.pages.update({
-					page_id: pageID,
+					page_id: p.page_id,
 					archived: true, // or in_trash: true
 				});
 				let deleteQuery = await DB.query(
@@ -486,26 +504,29 @@ export async function clearOutArchive() {
               DELETE FROM tasks
               WEHRE page_id = ?
           `,
-					[pageID]
+					[p.page_id]
 				);
 				console.log(
 					"successfully archived page: ",
-					pageID,
+					p.page_id,
 					response,
 					deleteQuery
 				);
 			}
-			let updateArchiveDate = DB.query(
+			let [res] = await DB.query<ResultSetHeader>(
 				`
         UPDATE LastArchive
         SET date = ?
         WHERE id = '1'`,
 				[nextArchive]
 			);
+			if (res.affectedRows != 1) {
+				throw new Error("did not update correct archive removal time");
+			}
 		} catch (e) {
 			console.log(e);
 		}
-	}, nextArchive - now);
+	}, nextArchive.getTime() - now.getTime());
 }
 // <--------------------------------DueDate Extension logic ------------->
 // <--------------------------------DueDate Extension logic ------------->
