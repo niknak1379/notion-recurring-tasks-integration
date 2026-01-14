@@ -43,7 +43,7 @@ export let toBeRecurred = new Map();
 dotenv.config();
 
 //environment variables initialization and validation
-const refreshTokenId = process.env["REFRESH_TOKEN_ID"];
+
 const MYSQL_HOST = process.env["MYSQL_HOST"];
 const MYSQL_USER = process.env["MYSQL_USER"];
 const MYSQL_PASSWORD = process.env["MYSQL_PASSWORD"];
@@ -52,7 +52,6 @@ const INTERNAL_INTEGRATION_SECRET = process.env["INTERNAL_INTEGRATION_SECRET"];
 const REFRESH_TOKEN_ID = process.env["REFRESH_TOKEN_ID"];
 const DATASOURCE_ID = process.env["DATASOURCE_ID"];
 if (
-	!refreshTokenId ||
 	!MYSQL_HOST ||
 	!MYSQL_USER ||
 	!MYSQL_PASSWORD ||
@@ -105,7 +104,7 @@ export async function isTrustedNotionRequest(req: Request): Promise<boolean> {
 export async function getValidationToken(req: Request): Promise<string> {
 	const [rows] = await DB.query<TokenRow[]>(
 		`SELECT refreshToken FROM Tokens WHERE id = ?`,
-		[refreshTokenId]
+		[REFRESH_TOKEN_ID]
 	);
 
 	if (
