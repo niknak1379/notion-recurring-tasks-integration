@@ -76,7 +76,7 @@ const DB = mysql
 		database: MYSQL_DATABASE,
 	})
 	.promise();
-const notion = new Client({ auth: INTERNAL_INTEGRATION_SECRET });
+export const notion = new Client({ auth: INTERNAL_INTEGRATION_SECRET });
 
 //  ----------------------Request Verification Logi ------------->
 //  ----------------------Request Verification Logi ------------->

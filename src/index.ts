@@ -1,11 +1,12 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import dotenv from "dotenv";
-import { Client } from "@notionhq/client";
 
 // import { addDays, addHours, parseISO } from "date-fns";
 
 import {
+	addToDB,
+	handleRecursionChange,
 	isTrustedNotionRequest,
 	toBeRecurred,
 	RecurTask,
@@ -16,13 +17,12 @@ import {
 	getToArchiveList,
 	getToDueDateChangeList,
 	addToDueDateChangeList,
-} from "./Utils/utils.ts";
+} from "./Utils/utils.js";
 
 dotenv.config();
 
 const app = express();
 
-// needed for token verification
 declare global {
 	namespace Express {
 		interface Request {
@@ -33,6 +33,7 @@ declare global {
 
 const rawBodySaver = (
 	req: Request,
+	res: Response,
 	buf: Buffer,
 	encoding: BufferEncoding
 ): void => {
@@ -46,22 +47,18 @@ app.use(
 		verify: rawBodySaver,
 	})
 );
-
 /* app.use((req, res, next) => {
   res.setHeader("Notion-Version", "2025-09-03");
   next();
 }); */
 
-const PORT = process.env.PORT || 5000;
-const notion = new Client({ auth: process.env.INTERNAL_INTEGRATION_SECRET });
-
 // ROUTES --------------------------------------------------------
 
-app.get("/", (req, res) => {
+app.get("/", (req: Request, res: Response) => {
 	return res.send("Server is alive 🚀");
 });
 // Health check
-app.get("/health", (req, res) => {
+app.get("/health", (req: Request, res: Response) => {
 	return res.send("healthy");
 });
 // https://developers.notion.com/reference/webhooks-events-delivery
@@ -92,7 +89,7 @@ app.get("/health", (req, res) => {
       }
     }
   */
-app.post("/notion-webhook", async (req, res) => {
+app.post("/notion-webhook", async (req: Request, res: Response) => {
 	try {
 		const body = req.body;
 		// console.log("logging webhook full request", req);
@@ -101,7 +98,8 @@ app.post("/notion-webhook", async (req, res) => {
 		// handles subsequent verification requests
 		if (!isTrustedNotionRequest(req)) {
 			console.log("unable to verify, wrong validation token");
-			return res.sendStatus(200);
+			res.sendStatus(200);
+			return;
 		}
 		console.log("verified notion signature, proceeding");
 
@@ -116,6 +114,7 @@ app.post("/notion-webhook", async (req, res) => {
 			) {
 				handleTaskUpdate(body);
 				res.sendStatus(200);
+				return;
 			} else {
 				console.log(
 					"Ignoring event type, end of processing: ",
@@ -123,15 +122,18 @@ app.post("/notion-webhook", async (req, res) => {
 					"\n"
 				);
 				res.sendStatus(200);
+				return;
 			}
 		} else {
 			console.log("no request body found, still returning 200");
-			return res.sendStatus(200);
+			res.sendStatus(200);
+			return;
 		}
 	} catch (err) {
 		console.error("Error handling webhook:", err);
-		if (!res.headersSent()) {
-			return res.sendStatus(200);
+		if (!res.headersSent) {
+			res.sendStatus(200);
+			return;
 		}
 	}
 });
@@ -179,7 +181,9 @@ app.post("/notion-webhook", async (req, res) => {
             }
             
  */
-async function handleTaskUpdate(event) {
+
+// handle change in tasks and new tasks
+async function handleTaskUpdate(event: any) {
 	if (event.type === "page.properties_updated") {
 		// check if it is a recurring task
 		switch (true) {
@@ -204,7 +208,7 @@ async function handleTaskUpdate(event) {
 				}
 				break;
 			case event.data.updated_properties("jSyh"): //recurring
-				await handleRecursionChange(pageID);
+				await handleRecursionChange(event.entity.id);
 				break;
 		}
 	} else if (event.type === "page.created") {
