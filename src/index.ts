@@ -204,6 +204,7 @@ app.listen(5000, "0.0.0.0", async () => {
 	logger.info("Server running on port 5000");
 	await syncDataBase();
 	await getToBeRecurred();
+	clearOutArchive();
 	setInterval(() => {
 		clearOutArchive();
 	}, 604800000); //weekly cleanup
