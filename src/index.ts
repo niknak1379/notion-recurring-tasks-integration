@@ -54,11 +54,11 @@ app.use(
 
 // ROUTES --------------------------------------------------------
 
-app.get("/", (res: Response) => {
+app.get("/", (_req: Request, res: Response) => {
 	return res.send("Server is alive 🚀");
 });
 // Health check
-app.get("/health", (res: Response) => {
+app.get("/health", (_req: Request, res: Response) => {
 	return res.send("healthy");
 });
 // https://developers.notion.com/reference/webhooks-events-delivery
