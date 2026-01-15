@@ -4,11 +4,10 @@ import dotenv from "dotenv";
 
 // import { addDays, addHours, parseISO } from "date-fns";
 
+import { isTrustedNotionRequest, toBeRecurred } from "./Utils/utils.js";
 import {
 	addToDB,
 	handleRecursionChange,
-	isTrustedNotionRequest,
-	toBeRecurred,
 	RecurTask,
 	getToBeRecurred,
 	syncDataBase,
@@ -17,7 +16,7 @@ import {
 	getToArchiveList,
 	getToDueDateChangeList,
 	addToDueDateChangeList,
-} from "./Utils/utils.js";
+} from "./Utils/taskUpdate.js";
 import logger from "./Utils/logger.js";
 dotenv.config();
 
