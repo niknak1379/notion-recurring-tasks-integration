@@ -183,7 +183,10 @@ async function handleTaskUpdate(event: any) {
 					// checks if it is done or not and recurrs and changes the deadline
 					// if it is
 					logger.info("recurring task", { id: event.entity.id });
-					await RecurTask(event.entity.id, toBeRecurred.get(event.entity.id));
+					await RecurTask(
+						event.entity.id,
+						toBeRecurred.get(event.entity.id) as number
+					);
 				} else {
 					logger.info("adding to archive list", { id: event.entity.id });
 					await addToArchiveList(event.entity.id, event.timestamp);

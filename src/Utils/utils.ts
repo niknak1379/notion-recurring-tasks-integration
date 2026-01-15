@@ -39,7 +39,7 @@ interface TokenRow extends RowDataPacket {
 // ----------------------DB and notion Client Init ---------->
 export let verificationToken = "";
 export let toBeDueDateChanged = [];
-export let toBeRecurred = new Map();
+export let toBeRecurred = new Map<string, number>();
 dotenv.config();
 
 //environment variables initialization and validation
@@ -571,13 +571,20 @@ export async function scheduleDueDateChange(pageID: string, dueDate: string) {
 			status != "Done" &&
 			retrievedDateObject.toISOString() == deadline.toISOString()
 		) {
+			let endDate;
+			if (status == "To Do" || status == "In Progress") {
+				endDate = addDays(retrievedDeadline, 2);
+			} else {
+				// if a long term task push back by 2 weeks
+				endDate = addDays(retrievedDeadline, 14);
+			}
 			let dateupdate = await notion.pages.update({
 				page_id: pageID,
 				properties: {
 					"Due Date": {
 						date: {
 							// push it back only by 2 for now, add custom functionality later?
-							start: addDays(retrievedDeadline, 2),
+							start: endDate,
 						},
 					},
 				},
@@ -624,7 +631,7 @@ export async function getToBeRecurred() {
 	for (let recurringTask of query) {
 		toBeRecurred.set(recurringTask.page_id, recurringTask.recurrByDays);
 	}
-	logger.info("toBeRecurred", { toBeRecurred: toBeRecurred });
+	logger.info("toBeRecurred", { value: toBeRecurred });
 }
 
 // low level give it pageID, will find the status and
