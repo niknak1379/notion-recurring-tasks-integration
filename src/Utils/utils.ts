@@ -517,7 +517,7 @@ export async function getToDueDateChangeList() {
 	let [query] = await DB.query<page[]>(
 		`
     SELECT page_id, deadline FROM tasks
-    WHERE page_status IN ("In Progress", "To-Do")
+    WHERE page_status IN ("In Progress", "To-Do", "Long Term To-Do", "Long Term In Progress")
     AND deadline IS NOT NULL`
 	);
 	logger.info("addToDueDateChangeList", query);
