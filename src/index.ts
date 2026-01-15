@@ -6,16 +6,16 @@ import dotenv from "dotenv";
 
 import { isTrustedNotionRequest, toBeRecurred } from "./Utils/utils.js";
 import {
-	addToDB,
+	addTaskToDB,
 	handleRecursionChange,
 	RecurTask,
-	getToBeRecurred,
+	getRecurringTasks,
 	syncDataBase,
 	addToArchiveList,
 	clearOutArchive,
 	getToArchiveList,
-	getToDueDateChangeList,
-	addToDueDateChangeList,
+	getDueDatesList,
+	addToDueDateList,
 } from "./Utils/taskUpdate.js";
 import logger from "./Utils/logger.js";
 dotenv.config();
@@ -175,7 +175,7 @@ async function handleTaskUpdate(event: any) {
 		// check if it is a recurring task
 		switch (true) {
 			case event.data.updated_properties.includes("G%5Db%3B"): //due date
-				await addToDueDateChangeList(event.entity.id);
+				await addToDueDateList(event.entity.id);
 				break;
 			case event.data.updated_properties("blD%7D"): //status
 				if (toBeRecurred.get(event.entity.id) != null) {
@@ -196,7 +196,7 @@ async function handleTaskUpdate(event: any) {
 				break;
 		}
 	} else if (event.type === "page.created") {
-		await addToDB(event.entity.id, event.timestamp);
+		await addTaskToDB(event.entity.id, event.timestamp);
 	}
 }
 
@@ -205,12 +205,12 @@ async function handleTaskUpdate(event: any) {
 app.listen(5000, "0.0.0.0", async () => {
 	logger.info("Server running on port 5000");
 	await syncDataBase();
-	await getToBeRecurred();
+	await getRecurringTasks();
 	clearOutArchive();
 	setInterval(() => {
 		clearOutArchive();
 	}, 604800000); //weekly cleanup
 
 	await getToArchiveList();
-	await getToDueDateChangeList();
+	await getDueDatesList();
 });

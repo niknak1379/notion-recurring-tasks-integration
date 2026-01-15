@@ -121,7 +121,7 @@ export async function syncDataBase() {
 	}
 }
 
-export async function addToDB(pageID: string, creationTime: string) {
+export async function addTaskToDB(pageID: string, creationTime: string) {
 	let isRecurring = 0;
 	let recurrByDays = getRecursion(pageID);
 	if (recurrByDays != undefined) {
@@ -156,7 +156,7 @@ export async function addToDB(pageID: string, creationTime: string) {
 
 	if (deadline != null) {
 		logger.debug("page has deadline, calling addToDueDateChangeList");
-		await addToDueDateChangeList(pageID);
+		await addToDueDateList(pageID);
 	}
 	if (status == "Done") {
 		logger.debug("page status is done, callig addToArchiveList");
@@ -170,7 +170,8 @@ export async function addToDB(pageID: string, creationTime: string) {
 // <--------------------------------Archive logic ------------->
 
 // initializes the projects that need to be moved to the
-// archive from the database,
+// archive column from the Done column from the database,
+// changes this status a week after it was moved to done
 // dont have to call it other than during init, add and update already
 // handle archiving with addToArchiveList function
 export async function getToArchiveList() {
@@ -235,9 +236,9 @@ async function scheduleArchive(pageID: string, lastModified: string) {
 		});
 		const [archiveQuery] = await DB.query<ResultSetHeader>(
 			`
-        UPDATE tasks
-        SET page_status = "Archived"
-        WHERE page_id = ?`,
+            UPDATE tasks
+            SET page_status = "Archived"
+            WHERE page_id = ?`,
 			[pageID]
 		);
 		logger.info("in timeout, successfully archived page:", {
@@ -260,9 +261,9 @@ export async function clearOutArchive() {
 	}
 	let [query] = await DB.query<ArchiveRes[]>(
 		`
-      SELECT date FROM LastArchive
-      WHERE id = '1'
-  `,
+            SELECT date FROM LastArchive
+            WHERE id = '1'
+        `,
 		[]
 	);
 
@@ -280,8 +281,8 @@ export async function clearOutArchive() {
 	setTimeout(async () => {
 		let [toBeDeleted] = await DB.query<page[]>(
 			`
-      SELECT page_id FROM tasks
-      WHERE page_status = "Archived"`,
+            SELECT page_id FROM tasks
+            WHERE page_status = "Archived"`,
 			[]
 		);
 		for (let p of toBeDeleted) {
@@ -304,9 +305,9 @@ export async function clearOutArchive() {
 		}
 		let [res] = await DB.query<ResultSetHeader>(
 			`
-        UPDATE LastArchive
-        SET date = ?
-        WHERE id = '1'`,
+                UPDATE LastArchive
+                SET date = ?
+                WHERE id = '1'`,
 			[nextArchive]
 		);
 		if (res.affectedRows != 1) {
@@ -318,12 +319,12 @@ export async function clearOutArchive() {
 // <--------------------------------DueDate Extension logic ------------->
 // <--------------------------------DueDate Extension logic ------------->
 // <--------------------------------DueDate Extension logic ------------->
-export async function getToDueDateChangeList() {
+export async function getDueDatesList() {
 	let [query] = await DB.query<page[]>(
 		`
-    SELECT page_id, deadline FROM tasks
-    WHERE page_status IN ("In Progress", "To-Do", "Long Term To-Do", "Long Term In Progress")
-    AND deadline IS NOT NULL`
+        SELECT page_id, deadline FROM tasks
+        WHERE page_status IN ("In Progress", "To-Do", "Long Term To-Do", "Long Term In Progress")
+        AND deadline IS NOT NULL`
 	);
 	logger.info("addToDueDateChangeList", query);
 	for (let task of query) {
@@ -334,7 +335,7 @@ export async function getToDueDateChangeList() {
 /////////////////////// arent using this currently///////////
 // figure it out after drawing out the flowchart and actually
 // planning it
-export async function addToDueDateChangeList(pageID: string) {
+export async function addToDueDateList(pageID: string) {
 	let deadline = await getDeadline(pageID);
 	let [query] = await DB.query<ResultSetHeader>(
 		`
@@ -425,7 +426,7 @@ export async function scheduleDueDateChange(pageID: string, dueDate: string) {
 // <--------------------------------recurring tasks logic ------------->
 // <--------------------------------recurring tasks logic ------------->
 
-export async function getToBeRecurred() {
+export async function getRecurringTasks() {
 	let [query] = await DB.query<page[]>(
 		`
     SELECT page_id, recurrByDays FROM tasks
@@ -481,6 +482,7 @@ export async function RecurTask(pageID: string, recurrByDays: number) {
 	}
 }
 
+// if recursion status changes change in DB and memory
 export async function handleRecursionChange(pageID: string) {
 	let query;
 	let recurrByDays = await getRecursion(pageID);
