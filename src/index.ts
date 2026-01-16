@@ -216,6 +216,7 @@ async function handleTaskUpdate(event: webhook) {
 
 app.listen(5000, "0.0.0.0", async () => {
   logger.info("Server running on port 5000");
+  // getPriority("2b5269f7-2b21-80f8-9cda-e352707fe9a2")
   await syncDataBase();
   await getRecurringTasks();
   clearOutArchive();
