@@ -344,7 +344,7 @@ export async function addToDueDateList(pageID: string) {
     `
       UPDATE tasks
       SET deadline = ?
-      WHERE page = ?
+      WHERE page_id = ?
         `,
     [deadline, pageID]
   );
