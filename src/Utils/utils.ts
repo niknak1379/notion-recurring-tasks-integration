@@ -225,7 +225,7 @@ export function addDays(isoString: string, days: number): string {
   return date.toISOString();
 }
 export function escealatePriority(currPriority: string): string {
-  let index = PriorityArr.indexOf("currPriority")
+  let index = PriorityArr.indexOf(currPriority)
   logger.info("escalating priority", {"currPriority": currPriority})
   if (index == -1) {
     throw new Error("priority not found code has a bug")
