@@ -68,7 +68,12 @@ app.get("/", (_req: Request, res: Response) => {
 });
 // Health check
 app.get("/health", (_req: Request, res: Response) => {
-  return res.send("healthy");
+  res.status(200).json({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    service: "Notion",
+  });
 });
 // https://developers.notion.com/reference/webhooks-events-delivery
 // https://developers.notion.com/reference/query-a-data-source
