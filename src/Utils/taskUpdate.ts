@@ -296,7 +296,7 @@ export async function clearOutArchive() {
       let deleteQuery = await DB.query(
         `
               DELETE FROM tasks
-              WEHRE page_id = ?
+              WHERE page_id = ?
           `,
         [p.page_id]
       );
@@ -384,7 +384,7 @@ export async function scheduleDueDateChange(pageID: string, dueDate: string) {
       let endDate;
       if (status == "To Do" || status == "In Progress") {
         endDate = addDays(retrievedDeadline, 2);
-      } else if (status == "Long Term To-Do" || status == "Long Term In Progress"){
+      } else if (status == "Long Term To-Do" || status == "Long Term In Progress") {
         // if a long term task push back by 2 weeks
         endDate = addDays(retrievedDeadline, 14);
       }
