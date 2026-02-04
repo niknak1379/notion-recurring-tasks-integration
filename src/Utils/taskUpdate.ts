@@ -394,7 +394,7 @@ export async function scheduleDueDateChange(pageID: string, dueDate: string) {
           "Due Date": {
             date: {
               // push it back only by 2 for now, add custom functionality later?
-              start: endDate,
+              start: endDate as string,
             },
           },
           "ZGmH": {
