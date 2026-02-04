@@ -457,7 +457,7 @@ export async function RecurTask(pageID: string, recurrByDays: number) {
   let status = await getStatus(pageID);
   let date = new Date(await getDeadline(pageID));
   let now = new Date()
-  if (date.getTime() > now.getTime()) {
+  if (date.getTime() < now.getTime()) {
     date = now
   }
   let newDeadline = addDays(date.toISOString(), recurrByDays);
@@ -465,6 +465,7 @@ export async function RecurTask(pageID: string, recurrByDays: number) {
     title: title,
     status: status,
     DueDate: date,
+    NewDeadline: newDeadline,
   });
   if (status == "Done") {
     await notion.pages.update({
