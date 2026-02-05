@@ -387,6 +387,8 @@ export async function scheduleDueDateChange(pageID: string, dueDate: string) {
       } else if (status == "Long Term To-Do" || status == "Long Term In Progress") {
         // if a long term task push back by 2 weeks
         endDate = addDays(retrievedDeadline, 14);
+      } else {
+        return
       }
       let dateupdate = await notion.pages.update({
         page_id: pageID,
