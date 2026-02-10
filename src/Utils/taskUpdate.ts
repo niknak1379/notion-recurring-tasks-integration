@@ -213,6 +213,10 @@ export async function addToArchiveList(pageID: string, lastModified: string) {
 // negative timeout is basically immediate execution so thats fine
 async function scheduleArchive(pageID: string, lastModified: string) {
   let lastModifiedDate = new Date(lastModified);
+  if (isNaN(lastModifiedDate.getTime())) {
+    logger.warn("Invalid lastModified date, skipping archive scheduling", { pageID, lastModified });
+    return;
+  }
   let dateToBeArchived = new Date(addDays(lastModifiedDate.toISOString(), 7));
   let now = new Date();
   logger.info("setting archive time for page", {
@@ -338,6 +342,10 @@ export async function scheduleDueDateChange(pageID: string, dueDate: string) {
   // if not done then extend database with notion SDK and then
   // update database?
   let deadline = new Date(dueDate);
+  if (isNaN(deadline.getTime())) {
+    logger.warn("Invalid due date, skipping deadline scheduling", { pageID, dueDate });
+    return;
+  }
   let now = new Date();
   logger.info("scheduling due date extension for", pageID, deadline);
   setTimeout(async () => {
@@ -345,6 +353,10 @@ export async function scheduleDueDateChange(pageID: string, dueDate: string) {
     let status = await getStatus(pageID);
     let retrievedDeadline = await getDeadline(pageID);
     let retrievedDateObject = new Date(retrievedDeadline);
+    if (isNaN(retrievedDateObject.getTime())) {
+      logger.warn("Invalid retrieved deadline, skipping due date change", { pageID, retrievedDeadline });
+      return;
+    }
     let currPriority = await getPriority(pageID)
     logger.info("scheudle due date extension timeout:", {
       pageID: pageID,
@@ -388,7 +400,7 @@ export async function scheduleDueDateChange(pageID: string, dueDate: string) {
       });
     }
     // if the deadline has been extended or changed
-    else if (status != "Done" && retrievedDateObject != deadline) {
+    else if (status != "Done" && retrievedDateObject.getTime() !== deadline.getTime()) {
       let task = getTask(pageID);
       if (task) {
         task.deadline = retrievedDateObject.toISOString();
@@ -425,8 +437,11 @@ export async function RecurTask(pageID: string, recurrByDays: number) {
   let status = await getStatus(pageID);
   let date = new Date(await getDeadline(pageID));
   let now = new Date()
-  if (date.getTime() < now.getTime()) {
-    date = now
+  if (isNaN(date.getTime())) {
+    logger.warn("Invalid date in RecurTask, using current time", { pageID });
+    date = now;
+  } else if (date.getTime() < now.getTime()) {
+    date = now;
   }
   let newDeadline = addDays(date.toISOString(), recurrByDays);
   logger.info("logging recur task", {
