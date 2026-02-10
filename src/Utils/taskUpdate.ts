@@ -1,6 +1,5 @@
 import {
   DATASOURCE_ID,
-  DB,
   notion,
   getRecursion,
   getStatus,
@@ -10,29 +9,26 @@ import {
   toBeRecurred,
   escealatePriority,
   getPriority,
+  getTask,
+  setTask,
+  getAllTasks,
+  deleteTask,
 } from "./utils.js";
 import logger from "./logger.js";
 import { type PageObjectResponse } from "@notionhq/client";
-import { type ResultSetHeader, type RowDataPacket } from "mysql2";
-interface page extends RowDataPacket {
-  page_id: string;
-  last_changed: string;
-  deadline: string;
-  recurrByDays: number;
-}
+import type { RowDataPacket, ResultSetHeader } from "mysql2";
+import { DB } from "./utils.js";
+
 
 // <--------------------------------Data Base logic ------------->
 // <--------------------------------Data Base logic ------------->
 // <--------------------------------Data Base logic ------------->
 // <--------------------------------Data Base logic ------------->
 
-// syncs entire database for already existing tasks and for
-// initializing
+// syncs entire in-memory store for already existing tasks and for initializing
 export async function syncDataBase() {
-  logger.info("Deleting all DB entries for resync");
-  // Delete entire tasks for resync
-  await DB.query(`DELETE FROM tasks`);
-
+  logger.info("Clearing all in-memory entries for resync");
+  
   const response = await notion.dataSources.query({
     data_source_id: DATASOURCE_ID as string,
   });
@@ -96,37 +92,33 @@ export async function syncDataBase() {
     ) {
       statusName = status.status.name;
     }
-    logger.info("inserting the following object into the DB", {
+    
+    logger.info("storing task in memory", {
       title: name,
       isrecurring: isRecurring,
       recurrDays: recurrByDays,
       status: statusName,
       deadline: deadline,
     });
-    // Insert into database
-    const [result] = await DB.query<ResultSetHeader>(
-      `
-          INSERT INTO tasks (name, page_ID, deadline, page_status, last_changed, isRecurring, recurrByDays)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `,
-      [
-        name,
-        task.id,
-        deadline,
-        statusName,
-        task.last_edited_time,
-        isRecurring,
-        recurrByDays,
-      ]
-    );
 
-    logger.info("DB Insert result in affected rows", result.affectedRows);
+    // Store in memory
+    setTask(task.id, {
+      name,
+      page_id: task.id,
+      deadline: deadline?.toISOString() || null,
+      page_status: statusName,
+      last_changed: task.last_edited_time,
+      isRecurring,
+      recurrByDays,
+    });
+
+    logger.info("Stored task in memory:", task.id);
   }
 }
 
 export async function addTaskToDB(pageID: string, creationTime: string) {
   let isRecurring = 0;
-  let recurrByDays = getRecursion(pageID);
+  let recurrByDays = await getRecursion(pageID);
   if (recurrByDays != undefined) {
     isRecurring = 1;
   }
@@ -137,21 +129,25 @@ export async function addTaskToDB(pageID: string, creationTime: string) {
   let status = await getStatus(pageID);
   let deadline = await getDeadline(pageID);
   let title = await getTitle(pageID);
-  logger.info("adding single page to DB", {
+  logger.info("adding single page to memory", {
     title: title,
     status: status,
     deadline: deadline,
     isRecurring: isRecurring,
     recurrByDays: recurrByDays,
   });
-  let [query] = await DB.query<ResultSetHeader>(
-    `
-          INSERT INTO tasks (name, page_ID, deadline, page_status, last_changed, isRecurring, recurrByDays)
-          Values(?, ?, ?, ?, ?, ?, ?)
-        `,
-    [title, pageID, deadline, status, creationTime, isRecurring, recurrByDays]
-  );
-  logger.info("insert result:", query.affectedRows);
+  
+  setTask(pageID, {
+    name: title,
+    page_id: pageID,
+    deadline: deadline,
+    page_status: status,
+    last_changed: creationTime,
+    isRecurring,
+    recurrByDays,
+  });
+  
+  logger.info("stored task in memory:", pageID);
   if (isRecurring) {
     logger.debug("isRecurring, calling handleRecursion");
     await handleRecursionChange(pageID);
@@ -179,14 +175,10 @@ export async function addTaskToDB(pageID: string, creationTime: string) {
 // handle archiving with addToArchiveList function
 export async function getToArchiveList() {
   logger.info("initializing archive list");
-  let [query] = await DB.query<page[]>(
-    `
-    SELECT page_id, last_changed FROM tasks
-    WHERE page_status = "DONE"
-    `,
-    []
-  );
-  for (let task of query) {
+  let allTasks = getAllTasks();
+  let doneTasks = allTasks.filter(task => task.page_status === "Done");
+  
+  for (let task of doneTasks) {
     logger.info("setting archive schedule for", {
       page_id: task.page_id,
       last_changed: task.last_changed,
@@ -200,18 +192,13 @@ export async function addToArchiveList(pageID: string, lastModified: string) {
   //double check status
   let status = await getStatus(pageID);
   if (status == "Done") {
-    let [query] = await DB.query<ResultSetHeader>(
-      `
-      UPDATE tasks
-      SET last_changed = ?,
-      page_status = "Done"
-      WHERE page_id = ?
-    `,
-      [lastModified, pageID]
-    );
-    logger.info("update task last_changed for adding to archive list", {
-      rows: query.affectedRows,
-    });
+    let task = getTask(pageID);
+    if (task) {
+      task.last_changed = lastModified;
+      task.page_status = "Done";
+      setTask(pageID, task);
+      logger.info("updated task in memory for archive list");
+    }
     scheduleArchive(pageID, lastModified);
   }
 }
@@ -237,17 +224,14 @@ async function scheduleArchive(pageID: string, lastModified: string) {
         },
       },
     });
-    const [archiveQuery] = await DB.query<ResultSetHeader>(
-      `
-            UPDATE tasks
-            SET page_status = "Archived"
-            WHERE page_id = ?`,
-      [pageID]
-    );
-    logger.info("in timeout, successfully archived page:", {
-      pageID: pageID,
-      numberOfRows: archiveQuery.affectedRows,
-    });
+    let task = getTask(pageID);
+    if (task) {
+      task.page_status = "Archived";
+      setTask(pageID, task);
+      logger.info("in timeout, successfully archived page in memory:", {
+        pageID: pageID,
+      });
+    }
   }, dateToBeArchived.getTime() - now.getTime());
 }
 
@@ -282,40 +266,32 @@ export async function clearOutArchive() {
   let lastArchived = new Date(dateString as string);
   let nextArchive = new Date(addDays(lastArchived.toISOString(), 7));
   setTimeout(async () => {
-    let [toBeDeleted] = await DB.query<page[]>(
-      `
-            SELECT page_id FROM tasks
-            WHERE page_status = "Archived"`,
-      []
-    );
-    for (let p of toBeDeleted) {
+    let allTasks = getAllTasks();
+    let archivedTasks = allTasks.filter(task => task.page_status === "Archived");
+    
+    for (let task of archivedTasks) {
       const response = await notion.pages.update({
-        page_id: p.page_id,
-        archived: true, // or in_trash: true
+        page_id: task.page_id,
+        archived: true,
       });
-      let deleteQuery = await DB.query(
-        `
-              DELETE FROM tasks
-              WHERE page_id = ?
-          `,
-        [p.page_id]
-      );
+      deleteTask(task.page_id);
       logger.info("successfully archived page: ", {
-        id: p.page_id,
+        id: task.page_id,
         response: response,
-        dQeury: deleteQuery,
       });
     }
+    
     let [res] = await DB.query<ResultSetHeader>(
       `
                 UPDATE LastArchive
                 SET date = ?
                 WHERE id = '1'`,
-      [nextArchive]
+      [nextArchive.toISOString()]
     );
     if (res.affectedRows != 1) {
       throw new Error("did not update correct archive removal time");
     }
+    logger.info("Updated last archive date");
   }, nextArchive.getTime() - now.getTime());
 }
 // <--------------------------------DueDate Extension logic ------------->
@@ -323,15 +299,15 @@ export async function clearOutArchive() {
 // <--------------------------------DueDate Extension logic ------------->
 // <--------------------------------DueDate Extension logic ------------->
 export async function getDueDatesList() {
-  let [query] = await DB.query<page[]>(
-    `
-        SELECT page_id, deadline FROM tasks
-        WHERE page_status IN ("In Progress", "To-Do", "Long Term To-Do", "Long Term In Progress")
-        AND deadline IS NOT NULL`
+  let allTasks = getAllTasks();
+  let activeTasks = allTasks.filter(task => 
+    ["In Progress", "To-Do", "Long Term To-Do", "Long Term In Progress"].includes(task.page_status) &&
+    task.deadline !== null
   );
-  logger.info("addToDueDateChangeList", query);
-  for (let task of query) {
-    await scheduleDueDateChange(task.page_id, task.deadline);
+  
+  logger.info("found tasks with deadlines", activeTasks);
+  for (let task of activeTasks) {
+    await scheduleDueDateChange(task.page_id, task.deadline!);
   }
 }
 
@@ -340,16 +316,10 @@ export async function getDueDatesList() {
 // planning it
 export async function addToDueDateList(pageID: string) {
   let deadline = await getDeadline(pageID);
-  let [query] = await DB.query<ResultSetHeader>(
-    `
-      UPDATE tasks
-      SET deadline = ?
-      WHERE page_id = ?
-        `,
-    [deadline, pageID]
-  );
-  if (query.affectedRows != 1) {
-    throw new Error("could not update deadline in DB");
+  let task = getTask(pageID);
+  if (task) {
+    task.deadline = deadline;
+    setTask(pageID, task);
   }
   if (deadline != null) await scheduleDueDateChange(pageID, deadline);
   logger.info("updating task with new deadline", {
@@ -413,19 +383,13 @@ export async function scheduleDueDateChange(pageID: string, dueDate: string) {
     }
     // if the deadline has been extended or changed
     else if (status != "Done" && retrievedDateObject != deadline) {
-      let [updateDeadline] = await DB.query<ResultSetHeader>(
-        `
-            UPDATE tasks
-            SET deadline = ?
-            WHERE page_id = ?
-          `,
-        [retrievedDateObject, pageID]
-      );
-      if (updateDeadline.affectedRows != 1) {
-        throw new Error("could not update new deadline in db");
+      let task = getTask(pageID);
+      if (task) {
+        task.deadline = retrievedDateObject.toISOString();
+        setTask(pageID, task);
       }
       logger.warn(
-        "deadline was changed, updating DB from scheduleDueDateChange"
+        "deadline was changed, updating memory from scheduleDueDateChange"
       );
       scheduleDueDateChange(pageID, retrievedDeadline);
     }
@@ -438,15 +402,11 @@ export async function scheduleDueDateChange(pageID: string, dueDate: string) {
 // <--------------------------------recurring tasks logic ------------->
 
 export async function getRecurringTasks() {
-  let [query] = await DB.query<page[]>(
-    `
-    SELECT page_id, recurrByDays FROM tasks
-    WHERE isRecurring = 1
-    `,
-    []
-  );
-  for (let recurringTask of query) {
-    toBeRecurred.set(recurringTask.page_id, recurringTask.recurrByDays);
+  let allTasks = getAllTasks();
+  let recurringTasks = allTasks.filter(task => task.isRecurring === 1);
+  
+  for (let task of recurringTasks) {
+    toBeRecurred.set(task.page_id, task.recurrByDays);
   }
   logger.info("toBeRecurred", { value: toBeRecurred });
 }
@@ -488,16 +448,13 @@ export async function RecurTask(pageID: string, recurrByDays: number) {
         }
       },
     });
-    let query = await DB.query(
-      `
-              UPDATE tasks
-              SET page_status = "To-Do",
-              deadline = ?
-              WHERE page_id = ?
-              `,
-      [newDeadline, pageID]
-    );
-    logger.debug("event successfully altered", { query: query });
+    let task = getTask(pageID);
+    if (task) {
+      task.page_status = "To-Do";
+      task.deadline = newDeadline;
+      setTask(pageID, task);
+      logger.debug("event successfully altered in memory");
+    }
   } else {
     logger.info("status not done, not updating");
   }
@@ -505,42 +462,32 @@ export async function RecurTask(pageID: string, recurrByDays: number) {
 
 // if recursion status changes change in DB and memory
 export async function handleRecursionChange(pageID: string) {
-  let query;
   let recurrByDays = await getRecursion(pageID);
+  let task = getTask(pageID);
+
+  if (!task) return;
 
   //add to recursion
   if (recurrByDays != null) {
-    [query] = await DB.query<ResultSetHeader>(
-      `
-          UPDATE tasks
-          SET isRecurring = 1, recurrByDays = ?
-          WHERE page_id = ?
-        `,
-      [recurrByDays, pageID]
-    );
+    task.isRecurring = 1;
+    task.recurrByDays = recurrByDays;
+    setTask(pageID, task);
     toBeRecurred.set(pageID, recurrByDays);
     logger.info("successfully changed recursion for page", {
       ID: pageID,
       recurr: toBeRecurred,
-      affected: query.affectedRows,
     });
   }
   // if no recursion set up, delete from recursion list
   else {
     if (toBeRecurred.get(pageID) != null) {
-      [query] = await DB.query<ResultSetHeader>(
-        `
-          UPDATE tasks
-          SET isRecurring = 0, recurrByDays = 0
-          WHERE page_id = ?
-        `,
-        [pageID]
-      );
+      task.isRecurring = 0;
+      task.recurrByDays = 0;
+      setTask(pageID, task);
       toBeRecurred.delete(pageID);
       logger.info("successfully deleted recursion for page", {
         ID: pageID,
         recurred: toBeRecurred,
-        affectedRows: query.affectedRows,
       });
     }
   }

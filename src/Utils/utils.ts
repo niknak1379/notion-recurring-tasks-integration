@@ -29,9 +29,7 @@ interface notoinPageProperty {
 
 }
 
-interface TokenRow extends RowDataPacket {
-  refreshToken: string;
-}
+
 let PriorityArr = ["Low", "Medium", "High"]
 
 // ----------------------DB and notion Client Init ---------->
@@ -41,6 +39,56 @@ let PriorityArr = ["Low", "Medium", "High"]
 export let verificationToken = "";
 export let toBeDueDateChanged = [];
 export let toBeRecurred = new Map<string, number>();
+
+// In-memory data structures replacing database tables (except tokens which remain in DB)
+interface Task {
+  name: string;
+  page_id: string;
+  deadline: string | null;
+  page_status: string;
+  last_changed: string;
+  isRecurring: number;
+  recurrByDays: number;
+}
+
+interface TokenRow extends RowDataPacket {
+  refreshToken: string;
+}
+
+interface LastArchive {
+  date: string;
+}
+
+const tasks = new Map<string, Task>();
+const lastArchive = new Map<string, LastArchive>();
+
+// In-memory data access functions
+export function getTask(pageId: string): Task | undefined {
+  return tasks.get(pageId);
+}
+
+export function setTask(pageId: string, task: Task): void {
+  tasks.set(pageId, task);
+}
+
+export function getAllTasks(): Task[] {
+  return Array.from(tasks.values());
+}
+
+export function deleteTask(pageId: string): boolean {
+  return tasks.delete(pageId);
+}
+
+
+
+export function getLastArchive(id: string): LastArchive | undefined {
+  return lastArchive.get(id);
+}
+
+export function setLastArchive(id: string, archive: LastArchive): void {
+  lastArchive.set(id, archive);
+}
+
 dotenv.config();
 
 //environment variables initialization and validation
@@ -61,9 +109,10 @@ if (
   !REFRESH_TOKEN_ID ||
   !DATASOURCE_ID
 ) {
-  throw new Error("REFRESH_TOKEN_ID environment variable is missing");
+  throw new Error("Required environment variables are missing");
 }
 
+// MySQL connection for token persistence only
 export const DB = mysql
   .createPool({
     host: MYSQL_HOST,
