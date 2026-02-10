@@ -77,7 +77,13 @@ export async function syncDataBase() {
       dueDate.type === "date" &&
       "date" in dueDate
     ) {
-      deadline = new Date(dueDate.date?.start as string) || null;
+      const startDate = dueDate.date?.start;
+      if (startDate) {
+        const parsedDate = new Date(startDate);
+        if (!isNaN(parsedDate.getTime())) {
+          deadline = parsedDate;
+        }
+      }
     }
 
     // Get Status
